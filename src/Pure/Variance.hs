@@ -9,7 +9,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE DeriveAnyClass #-}
-module Pure.Variance (Vary(..),Varied,Variance(..),stdDev,variance,varies,getVariance) where
+module Pure.Variance (Vary(..),Varied,Variance(..),stdDev,variance,varies,getVariance,addToVariance,defaultVariance) where
 
 import Pure.Data.JSON
 import Pure.Data.Txt
@@ -35,6 +35,9 @@ data Variance
     , minimum_ :: {-# UNPACK #-} !Double
     , maximum_ :: {-# UNPACK #-} !Double
     } deriving (Eq,Ord,Generic,ToJSON,FromJSON,Show)
+
+defaultVariance :: Variance
+defaultVariance = Variance 0 0 0 0 0
 
 instance NFData Variance
 
