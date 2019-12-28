@@ -66,7 +66,7 @@ vary (realToFrac -> a) Variance {..} =
     Variance count' mean' mean2' mn mx
 
 {-# INLINE varies #-}
-varies :: Real b => (a -> b) -> [a] -> Variance
+varies :: (Foldable f, Real b) => (a -> b) -> f a -> Variance
 varies f = Prelude.foldr (vary . f) mempty
 
 {-# INLINE variance #-}
