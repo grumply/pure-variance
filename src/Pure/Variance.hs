@@ -12,9 +12,9 @@
 module Pure.Variance (Vary(..),Varied,Variance(..),stdDev,variance,varies,getVariance,addToVariance,defaultVariance) where
 
 import Pure.Data.JSON
-import Pure.Data.Txt
+import Pure.Data.Txt hiding (count)
 
-import Data.HashMap.Lazy as HM
+import Data.HashMap.Strict as HM
 
 import Data.Int
 import Data.Word
@@ -39,6 +39,37 @@ data Variance
 defaultVariance :: Variance
 defaultVariance = Variance 0 0 0 0 0
 
+instance Monoid Variance where
+  {-# INLINE mempty #-}
+  mempty = defaultVariance
+
+instance Semigroup Variance where
+  {-# INLINE (<>) #-}
+  (<>) v1 v2
+    | count v1 == 0 = v2
+    | count v2 == 0 = v1
+    | otherwise =
+      let
+        c1 = count v1
+        c2 = count v2
+        m1 = mean v1
+        m2 = mean v2
+
+        c  = c1 + c2
+
+        m = (c1 * m1 + c2 * m2) / c
+
+        ma = fromJust (variance v1) * (c1 - 1)
+        mb = fromJust (variance v2) * (c2 - 1)
+        d  = m1 - m2
+        m2' = ma + mb + d ^^ 2 * c1 * c2 / c
+
+        min_ = min (minimum_ v1) (minimum_ v2)
+        max_ = max (maximum_ v1) (maximum_ v2)
+
+      in
+        Variance c m m2' min_ max_
+
 instance NFData Variance
 
 newtype Varied = Varied (HashMap String Variance)
@@ -49,13 +80,14 @@ instance NFData Varied where
 {-# INLINE addToVariance #-}
 addToVariance :: Real a => a -> Variance -> Variance
 addToVariance (realToFrac -> a) Variance {..} =
-  let !count' = count + 1
-      !delta = a - mean
-      !mean' = mean + (delta / count')
-      !mean2' = mean2 + delta * (a - mean')
-      !mx = max a maximum_
-      !mn = if minimum_ == 0 then a else min a minimum_
-  in Variance count' mean' mean2' mn mx
+  let count' = count + 1
+      delta = a - mean
+      mean' = mean + (delta / count')
+      mean2' = mean2 + delta * (a - mean')
+      mx = max a maximum_
+      mn = if count == 0 then a else min a minimum_
+  in
+    Variance count' mean' mean2' mn mx
 
 {-# INLINE variance #-}
 variance :: Variance -> Maybe Double
@@ -153,7 +185,7 @@ instance {-# OVERLAPPING #-} (Real a, Foldable f, Vary a) => Vary (f (Txt,a)) wh
 
 instance {-# OVERLAPPING #-} (Real a, Vary a, V.Vector v a) => Vary (v a) where
   varied nm a (Varied hm) = Varied $
-    V.ifoldr' (\i v m ->
+    V.ifoldr (\i v m ->
        let n = nm ++ "." ++ show i
        in HM.alter (Just . maybe (addToVariance v (Variance 0 0 0 0 0)) (addToVariance v)) n m
      )
