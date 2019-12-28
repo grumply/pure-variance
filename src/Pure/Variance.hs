@@ -1,31 +1,17 @@
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE DefaultSignatures #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE DeriveAnyClass #-}
-module Pure.Variance (Vary(..),Varied,Variance(..),stdDev,variance,varies,getVariance,addToVariance,defaultVariance) where
+module Pure.Variance (Variance(..),stdDev,variance,vary,varies,Vary(..),Varied,getVariance,variances) where
 
 import Pure.Data.JSON
 import Pure.Data.Txt hiding (count)
 
-import Data.HashMap.Strict as HM
-
 import Data.Int
 import Data.Word
-
 import Data.Maybe
 import GHC.Generics as G
 import GHC.TypeLits
 
-import qualified Data.Vector.Generic as V
+import Data.HashMap.Strict as HM
 
-import Control.DeepSeq
+import qualified Data.Vector.Generic as V
 
 data Variance
   = Variance
@@ -36,12 +22,9 @@ data Variance
     , maximum_ :: {-# UNPACK #-} !Double
     } deriving (Eq,Ord,Generic,ToJSON,FromJSON,Show)
 
-defaultVariance :: Variance
-defaultVariance = Variance 0 0 0 0 0
-
 instance Monoid Variance where
   {-# INLINE mempty #-}
-  mempty = defaultVariance
+  mempty = Variance 0 0 0 0 0
 
 instance Semigroup Variance where
   {-# INLINE (<>) #-}
@@ -59,8 +42,8 @@ instance Semigroup Variance where
 
         m = (c1 * m1 + c2 * m2) / c
 
-        ma = fromJust (variance v1) * (c1 - 1)
-        mb = fromJust (variance v2) * (c2 - 1)
+        ma = fromMaybe 0 (variance v1) * (c1 - 1)
+        mb = fromMaybe 0 (variance v2) * (c2 - 1)
         d  = m1 - m2
         m2' = ma + mb + d ^^ 2 * c1 * c2 / c
 
@@ -70,16 +53,9 @@ instance Semigroup Variance where
       in
         Variance c m m2' min_ max_
 
-instance NFData Variance
-
-newtype Varied = Varied (HashMap String Variance)
- deriving (Show,Eq,Generic)
-
-instance NFData Varied where
-
-{-# INLINE addToVariance #-}
-addToVariance :: Real a => a -> Variance -> Variance
-addToVariance (realToFrac -> a) Variance {..} =
+{-# INLINE vary #-}
+vary :: Real a => a -> Variance -> Variance
+vary (realToFrac -> a) Variance {..} =
   let count' = count + 1
       delta = a - mean
       mean' = mean + (delta / count')
@@ -89,6 +65,10 @@ addToVariance (realToFrac -> a) Variance {..} =
   in
     Variance count' mean' mean2' mn mx
 
+{-# INLINE varies #-}
+varies :: Real b => (a -> b) -> [a] -> Variance
+varies f = Prelude.foldr (vary . f) mempty
+
 {-# INLINE variance #-}
 variance :: Variance -> Maybe Double
 variance Variance {..} = if count < 2 then Nothing else Just $ mean2 / (count - 1)
@@ -97,13 +77,16 @@ variance Variance {..} = if count < 2 then Nothing else Just $ mean2 / (count - 
 stdDev :: Variance -> Maybe Double
 stdDev = fmap sqrt . variance
 
-{-# INLINE varies #-}
-varies :: (Foldable f, Vary a) => f a -> Varied
-varies = Prelude.foldr (varied "") (Varied mempty)
+newtype Varied = Varied (HashMap String Variance)
+ deriving (Show,Eq,Generic)
 
 {-# INLINE getVariance #-}
 getVariance :: String -> Varied -> Maybe Variance
 getVariance s (Varied v) = HM.lookup s v
+
+{-# INLINE variances #-}
+variances :: (Vary a, Foldable f) => f a -> Varied
+variances = Prelude.foldr (varied "") (Varied mempty)
 
 class Vary a where
   varied :: String -> a -> Varied -> Varied
@@ -113,7 +96,7 @@ class Vary a where
 {-# INLINE gUpdateRealVariance #-}
 gUpdateRealVariance :: (Real a) => String -> a -> Varied -> Varied
 gUpdateRealVariance nm a (Varied hm) =
-  Varied (HM.alter (Just . maybe (addToVariance a (Variance 0 0 0 0 0)) (addToVariance a)) nm hm)
+  Varied (HM.alter (Just . maybe (vary a (Variance 0 0 0 0 0)) (vary a)) nm hm)
 
 instance {-# OVERLAPPABLE #-} Vary a where
   varied _ _ = id
@@ -161,36 +144,48 @@ instance {-# OVERLAPPING #-} (Real a, Vary a) => Vary (HashMap String a) where
   varied nm a hm = varied nm (HM.toList a) hm
 
 instance {-# OVERLAPPING #-} (Real a, Foldable f, Vary a) => Vary (f (String,a)) where
-  varied nm a (Varied hm) = Varied $
-    Prelude.foldr
-      (\(k,v) m ->
-        let n = (nm ++ "." ++ k)
-        in HM.alter (Just . maybe (addToVariance v (Variance 0 0 0 0 0)) (addToVariance v)) n m
-      )
-      hm
-      a
+  varied nm a (Varied hm) =
+    let x | nm == ""  = nm
+          | otherwise = nm ++ "."
+    in
+      Varied $
+        Prelude.foldr
+          (\(k,v) m ->
+            let n = x ++ k
+            in HM.alter (Just . maybe (vary v (Variance 0 0 0 0 0)) (vary v)) n m
+          )
+          hm
+          a
 
 instance {-# OVERLAPPING #-} (Real a, Vary a) => Vary (HashMap Txt a) where
   varied nm a hm = varied nm (HM.toList a) hm
 
 instance {-# OVERLAPPING #-} (Real a, Foldable f, Vary a) => Vary (f (Txt,a)) where
-  varied nm a (Varied hm) = Varied $ 
-    Prelude.foldr
-      (\(k,v) m ->
-        let n = (nm ++ "." ++ fromTxt k)
-        in HM.alter (Just . maybe (addToVariance v (Variance 0 0 0 0 0)) (addToVariance v)) n m
-      )
-      hm
-      a
+  varied nm a (Varied hm) =
+    let x | nm == ""  = nm
+          | otherwise = nm ++ "."
+    in
+      Varied $
+        Prelude.foldr
+          (\(k,v) m ->
+            let n = x ++ fromTxt k
+            in HM.alter (Just . maybe (vary v (Variance 0 0 0 0 0)) (vary v)) n m
+          )
+          hm
+          a
 
 instance {-# OVERLAPPING #-} (Real a, Vary a, V.Vector v a) => Vary (v a) where
-  varied nm a (Varied hm) = Varied $
-    V.ifoldr (\i v m ->
-       let n = nm ++ "." ++ show i
-       in HM.alter (Just . maybe (addToVariance v (Variance 0 0 0 0 0)) (addToVariance v)) n m
-     )
-     hm
-     a
+  varied nm a (Varied hm) =
+    let x | nm == ""  = nm
+          | otherwise = nm ++ "."
+    in
+      Varied $
+        V.ifoldr (\i v m ->
+          let n = x ++ show i
+          in HM.alter (Just . maybe (vary v (Variance 0 0 0 0 0)) (vary v)) n m
+        )
+        hm
+        a
 
 class GVary a where
   gUpdateVariance :: String -> a x -> Varied -> Varied
