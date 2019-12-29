@@ -1,4 +1,4 @@
-module Pure.Variance (Variance(..),stdDev,variance,vary,varies,Vary(..),Varied,getVariance,variances) where
+module Pure.Variance (Variance,minimum_,maximum_,mean,mean2,count,stdDev,variance,vary,varies,Vary(..),Varied,getVariance,variances) where
 
 import Pure.Data.JSON
 import Pure.Data.Txt hiding (count)
@@ -15,11 +15,11 @@ import qualified Data.Vector.Generic as V
 
 data Variance
   = Variance
-    { count    :: {-# UNPACK #-} !Double
-    , mean     :: {-# UNPACK #-} !Double
-    , mean2    :: {-# UNPACK #-} !Double
-    , minimum_ :: {-# UNPACK #-} !Double
-    , maximum_ :: {-# UNPACK #-} !Double
+    { vCount   :: {-# UNPACK #-} !Double
+    , vMean    :: {-# UNPACK #-} !Double
+    , vMean2   :: {-# UNPACK #-} !Double
+    , vMinimum :: {-# UNPACK #-} !Double
+    , vMaximum :: {-# UNPACK #-} !Double
     } deriving (Eq,Ord,Generic,ToJSON,FromJSON,Show)
 
 instance Monoid Variance where
@@ -29,14 +29,14 @@ instance Monoid Variance where
 instance Semigroup Variance where
   {-# INLINE (<>) #-}
   (<>) v1 v2
-    | count v1 == 0 = v2
-    | count v2 == 0 = v1
+    | vCount v1 == 0 = v2
+    | vCount v2 == 0 = v1
     | otherwise =
       let
-        c1 = count v1
-        c2 = count v2
-        m1 = mean v1
-        m2 = mean v2
+        c1 = vCount v1
+        c2 = vCount v2
+        m1 = vMean v1
+        m2 = vMean v2
 
         c  = c1 + c2
 
@@ -47,23 +47,51 @@ instance Semigroup Variance where
         d  = m1 - m2
         m2' = ma + mb + d ^^ 2 * c1 * c2 / c
 
-        min_ = min (minimum_ v1) (minimum_ v2)
-        max_ = max (maximum_ v1) (maximum_ v2)
+        min_ = min (vMinimum v1) (vMinimum v2)
+        max_ = max (vMaximum v1) (vMaximum v2)
 
       in
         Variance c m m2' min_ max_
 
+count :: Variance -> Int
+count = round . vCount
+
+mean :: Variance -> Maybe Double
+mean v
+  | vCount v == 0 = Nothing
+  | otherwise     = Just (vMean v)
+
+mean2 :: Variance -> Maybe Double
+mean2 v
+  | vCount v == 0 = Nothing
+  | otherwise     = Just (vMean2 v)
+
+minimum_ :: Variance -> Maybe Double
+minimum_ v
+  | vCount v == 0 = Nothing
+  | otherwise     = Just (vMinimum v)
+
+maximum_ :: Variance -> Maybe Double
+maximum_ v
+  | vCount v == 0 = Nothing
+  | otherwise     = Just (vMaximum v)
+
 {-# INLINE vary #-}
 vary :: Real a => a -> Variance -> Variance
 vary (realToFrac -> a) Variance {..} =
-  let count' = count + 1
-      delta = a - mean
-      mean' = mean + (delta / count')
-      mean2' = mean2 + delta * (a - mean')
-      mx = max a maximum_
-      mn = if count == 0 then a else min a minimum_
+  let count = vCount + 1
+      delta = a - vMean
+      mean = vMean + (delta / count)
+      mean2 = vMean2 + delta * (a - mean)
+      mx = max a vMaximum
+      mn = if vCount == 0 then a else min a vMinimum
   in
-    Variance count' mean' mean2' mn mx
+    Variance count mean mean2 mn mx
+
+{-# RULES
+"vary a mempty" forall a. vary a mempty = let r = realToFrac a in Variance 1 r 0 r r
+"flip vary mempty a" forall a. flip vary mempty a = let r = realToFrac a in Variance 1 r 0 r r
+  #-}
 
 {-# INLINE varies #-}
 varies :: (Foldable f, Real b) => (a -> b) -> f a -> Variance
@@ -71,7 +99,7 @@ varies f = Prelude.foldr (vary . f) mempty
 
 {-# INLINE variance #-}
 variance :: Variance -> Maybe Double
-variance Variance {..} = if count < 2 then Nothing else Just $ mean2 / (count - 1)
+variance Variance {..} = if vCount < 2 then Nothing else Just $ vMean2 / (vCount - 1)
 
 {-# INLINE stdDev #-}
 stdDev :: Variance -> Maybe Double
@@ -96,7 +124,7 @@ class Vary a where
 {-# INLINE gUpdateRealVariance #-}
 gUpdateRealVariance :: (Real a) => String -> a -> Varied -> Varied
 gUpdateRealVariance nm a (Varied hm) =
-  Varied (HM.alter (Just . maybe (vary a (Variance 0 0 0 0 0)) (vary a)) nm hm)
+  Varied (HM.alter (Just . maybe (vary a mempty) (vary a)) nm hm)
 
 instance {-# OVERLAPPABLE #-} Vary a where
   varied _ _ = id
@@ -152,7 +180,7 @@ instance {-# OVERLAPPING #-} (Real a, Foldable f, Vary a) => Vary (f (String,a))
         Prelude.foldr
           (\(k,v) m ->
             let n = x ++ k
-            in HM.alter (Just . maybe (vary v (Variance 0 0 0 0 0)) (vary v)) n m
+            in HM.alter (Just . maybe (vary v mempty) (vary v)) n m
           )
           hm
           a
@@ -169,7 +197,7 @@ instance {-# OVERLAPPING #-} (Real a, Foldable f, Vary a) => Vary (f (Txt,a)) wh
         Prelude.foldr
           (\(k,v) m ->
             let n = x ++ fromTxt k
-            in HM.alter (Just . maybe (vary v (Variance 0 0 0 0 0)) (vary v)) n m
+            in HM.alter (Just . maybe (vary v mempty) (vary v)) n m
           )
           hm
           a
@@ -182,7 +210,7 @@ instance {-# OVERLAPPING #-} (Real a, Vary a, V.Vector v a) => Vary (v a) where
       Varied $
         V.ifoldr (\i v m ->
           let n = x ++ show i
-          in HM.alter (Just . maybe (vary v (Variance 0 0 0 0 0)) (vary v)) n m
+          in HM.alter (Just . maybe (vary v mempty) (vary v)) n m
         )
         hm
         a
