@@ -1,7 +1,7 @@
 module Pure.Covariance (Covariance,covary,covaries,covariance,count,meanx,meany,meanx2,meany2,c,variance_x,variance_y,stdDev_x,stdDev_y,correlation) where
 
 import Pure.Data.JSON (ToJSON,FromJSON)
-import Pure.Variance (Vary())
+import Pure.Variance (Vary(),varies,variance,stdDev)
 
 import qualified Data.Foldable as Foldable
 import Data.Maybe (fromMaybe)
@@ -89,10 +89,14 @@ c cov
   | otherwise       = Just (cC cov)
 
 {-# RULES
-"covary f g a mempty" forall f g a. covary f g a (Covariance 0 0 0 0 0 0) = let { x = realToFrac (f a); y = realToFrac (g a) } in Covariance 1 x y 0 0 0
+"covary f g a mempty == Convariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0" forall f g a. covary f g a (Covariance 0 0 0 0 0 0) = Covariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0
+"variance_x (covaries f g as) == variance (varies f as)" forall f g as. variance_x (covaries f g as) = variance (varies f as)
+"variance_y (covaries f g as) == variance (varies g as)" forall f g as. variance_y (covaries f g as) = variance (varies g as)
+"stdDev_x (covaries f g as) == stdDev (varies f as)" forall f g as. stdDev_x (covaries f g as) = stdDev (varies f as)
+"stdDev_y (covaries f g as) == stdDev (varies g as)" forall f g as. stdDev_y (covaries f g as) = stdDev (varies g as)
   #-}
 
-{-# INLINE covary #-}
+{-# INLINE [1] covary #-}
 covary :: (Real x, Real y) => (a -> x) -> (a -> y) -> a -> Covariance -> Covariance
 covary f g a Covariance {..} =
   let
@@ -112,33 +116,33 @@ covary f g a Covariance {..} =
    in
     Covariance count meanx meany meanx2 meany2 c
 
-{-# INLINE covaries #-}
+{-# INLINE [1] covaries #-}
 covaries :: (Foldable f, Real x, Real y) => (a -> x) -> (a -> y) -> f a -> Covariance
 covaries f g = Foldable.foldl' (flip (covary f g)) mempty
 
-{-# INLINE covariance #-}
+{-# INLINE [1] covariance #-}
 covariance :: Covariance -> Maybe Double
 covariance Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cC / (cCount - 1)
 
-{-# INLINE variance_x #-}
+{-# INLINE [1] variance_x #-}
 variance_x :: Covariance -> Maybe Double
 variance_x Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeanx2 / (cCount - 1)
 
-{-# INLINE variance_y #-}
+{-# INLINE [1] variance_y #-}
 variance_y :: Covariance -> Maybe Double
 variance_y Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeany2 / (cCount - 1)
 
-{-# INLINE stdDev_x #-}
+{-# INLINE [1] stdDev_x #-}
 stdDev_x :: Covariance -> Maybe Double
 stdDev_x = fmap sqrt . variance_x
 
-{-# INLINE stdDev_y #-}
+{-# INLINE [1] stdDev_y #-}
 stdDev_y :: Covariance -> Maybe Double
 stdDev_y = fmap sqrt . variance_y
 

@@ -102,8 +102,8 @@ vary (realToFrac -> a) Variance {..} =
   #-}
 
 {-# INLINE varies #-}
-varies :: (Foldable f, Real a) => f a -> Variance
-varies = Foldable.foldl' (flip vary) mempty
+varies :: (Foldable f, Real b) => (a -> b) -> f a -> Variance
+varies f = Foldable.foldl' (\v a -> vary (f a) v) mempty
 
 {-# INLINE variance #-}
 variance :: Variance -> Maybe Double
