@@ -1,17 +1,25 @@
-module Pure.Variance (Variance,minimum_,maximum_,mean,mean2,count,stdDev,variance,vary,varies,Vary(..),Varied,getVariance,variances) where
+module Pure.Variance (Variance,minimum_,maximum_,mean,mean2,count,stdDev,variance,vary,varies,Vary(..),Varied,lookupVariance,varieds) where
 
 import Pure.Data.JSON
 import Pure.Data.Txt hiding (count)
 
+import Data.Functor.Sum
+import Data.Functor.Const
+import Data.Functor.Compose
+import Data.Functor.Product
+import Data.Functor.Identity
 import Data.Int
 import Data.Word
 import Data.Maybe
 import GHC.Generics as G
+import GHC.Natural
 import GHC.TypeLits
 
 import Data.HashMap.Strict as HM
 
 import qualified Data.Vector.Generic as V
+
+import Debug.Trace
 
 data Variance
   = Variance
@@ -20,7 +28,7 @@ data Variance
     , vMean2   :: {-# UNPACK #-} !Double
     , vMinimum :: {-# UNPACK #-} !Double
     , vMaximum :: {-# UNPACK #-} !Double
-    } deriving (Eq,Ord,Generic,ToJSON,FromJSON,Show)
+    } deriving (Vary,Eq,Ord,Generic,ToJSON,FromJSON,Show)
 
 instance Monoid Variance where
   {-# INLINE mempty #-}
@@ -42,13 +50,15 @@ instance Semigroup Variance where
 
         m = (c1 * m1 + c2 * m2) / c
 
-        ma = fromMaybe 0 (variance v1) * (c1 - 1)
-        mb = fromMaybe 0 (variance v2) * (c2 - 1)
         d  = m1 - m2
-        m2' = ma + mb + d ^^ 2 * c1 * c2 / c
+        m2' = v v1 + v v2 + d ^^ 2 * c1 * c2 / c
 
         min_ = min (vMinimum v1) (vMinimum v2)
         max_ = max (vMaximum v1) (vMaximum v2)
+
+        v c
+          | vCount c < 2 = 0
+          | otherwise    = vMean2 c
 
       in
         Variance c m m2' min_ max_
@@ -76,7 +86,7 @@ maximum_ v
   | vCount v == 0 = Nothing
   | otherwise     = Just (vMaximum v)
 
-{-# INLINE vary #-}
+{-# INLINE [1] vary #-}
 vary :: Real a => a -> Variance -> Variance
 vary (realToFrac -> a) Variance {..} =
   let count = vCount + 1
@@ -89,17 +99,18 @@ vary (realToFrac -> a) Variance {..} =
     Variance count mean mean2 mn mx
 
 {-# RULES
-"vary a mempty" forall a. vary a mempty = let r = realToFrac a in Variance 1 r 0 r r
-"flip vary mempty a" forall a. flip vary mempty a = let r = realToFrac a in Variance 1 r 0 r r
+"vary a mempty" forall a. vary a (Variance 0 0 0 0 0) = let r = realToFrac a in Variance 1 r 0 r r
   #-}
 
 {-# INLINE varies #-}
-varies :: (Foldable f, Real b) => (a -> b) -> f a -> Variance
-varies f = Prelude.foldr (vary . f) mempty
+varies :: (Foldable f, Real a) => f a -> Variance
+varies = Prelude.foldr vary mempty
 
 {-# INLINE variance #-}
 variance :: Variance -> Maybe Double
-variance Variance {..} = if vCount < 2 then Nothing else Just $ vMean2 / (vCount - 1)
+variance Variance {..}
+  | vCount < 2  = Nothing
+  | otherwise   = Just $ vMean2 / (vCount - 1)
 
 {-# INLINE stdDev #-}
 stdDev :: Variance -> Maybe Double
@@ -108,18 +119,44 @@ stdDev = fmap sqrt . variance
 newtype Varied = Varied (HashMap String Variance)
  deriving (Show,Eq,Generic)
 
-{-# INLINE getVariance #-}
-getVariance :: String -> Varied -> Maybe Variance
-getVariance s (Varied v) = HM.lookup s v
+instance Semigroup Varied where
+  {-# INLINE (<>) #-}
+  (<>) (Varied v1) (Varied v2)
+    | HM.null v1 = Varied v2
+    | HM.null v2 = Varied v1
+    | otherwise = Varied $ HM.unionWith (<>) v1 v2
 
-{-# INLINE variances #-}
-variances :: (Vary a, Foldable f) => f a -> Varied
-variances = Prelude.foldr (varied "") (Varied mempty)
+instance Monoid Varied where
+  {-# INLINE mempty #-}
+  mempty = Varied mempty
+
+{-# INLINE lookupVariance #-}
+lookupVariance :: String -> Varied -> Maybe Variance
+lookupVariance s (Varied v) = HM.lookup s v
+
+{-# INLINE varieds #-}
+varieds :: (Foldable f, Vary a) => f a -> Varied
+varieds = Prelude.foldr (varied "") (Varied mempty)
 
 class Vary a where
   varied :: String -> a -> Varied -> Varied
   default varied :: (Generic a, GVary (Rep a)) => String -> a -> Varied -> Varied
-  varied _ a hm = gUpdateVariance "" (from a) hm
+  varied nm = gUpdateVariance nm . from
+
+instance {-# OVERLAPPING #-} (Vary a,Vary b) => Vary (a,b)
+instance {-# OVERLAPPING #-} (Vary a,Vary b,Vary c) => Vary (a,b,c)
+instance {-# OVERLAPPING #-} (Vary a,Vary b,Vary c,Vary d) => Vary (a,b,c,d)
+instance {-# OVERLAPPING #-} (Vary a,Vary b,Vary c,Vary d,Vary e) => Vary (a,b,c,d,e)
+instance {-# OVERLAPPING #-} (Vary a,Vary b,Vary c,Vary d,Vary e,Vary f) => Vary (a,b,c,d,e,f)
+instance {-# OVERLAPPING #-} (Vary a,Vary b,Vary c,Vary d,Vary e,Vary f,Vary g) => Vary (a,b,c,d,e,f,g)
+
+instance {-# OVERLAPPING #-} (Vary a,Vary b) => Vary (Either a b)
+
+instance {-# OVERLAPPING #-} (Vary (f a), Vary (g a)) => Vary (Sum f g a)
+instance {-# OVERLAPPING #-} (Vary (f a), Vary (g a)) => Vary (Product f g a)
+instance {-# OVERLAPPING #-} (Vary a) => Vary (Const a b)
+instance {-# OVERLAPPING #-} (Vary a) => Vary (Identity a)
+instance {-# OVERLAPPING #-} (Vary (f ( g a))) => Vary (Compose f g a)
 
 {-# INLINE gUpdateRealVariance #-}
 gUpdateRealVariance :: (Real a) => String -> a -> Varied -> Varied
@@ -138,9 +175,6 @@ instance {-# OVERLAPPING #-} Vary Float where
 instance {-# OVERLAPPING #-} Vary Int where
   varied = gUpdateRealVariance
 
-instance {-# OVERLAPPING #-} Vary Integer where
-  varied = gUpdateRealVariance
-
 instance {-# OVERLAPPING #-} Vary Int8 where
   varied = gUpdateRealVariance
 
@@ -151,6 +185,12 @@ instance {-# OVERLAPPING #-} Vary Int32 where
   varied = gUpdateRealVariance
 
 instance {-# OVERLAPPING #-} Vary Int64 where
+  varied = gUpdateRealVariance
+
+instance {-# OVERLAPPING #-} Vary Integer where
+  varied = gUpdateRealVariance
+
+instance {-# OVERLAPPING #-} Vary Natural where
   varied = gUpdateRealVariance
 
 instance {-# OVERLAPPING #-} Vary Word where
@@ -270,12 +310,12 @@ instance {-# OVERLAPPABLE #-}
 class GUnlabeledFieldVary a where
   gUpdateUnlabeledFieldVariance :: String -> Int -> a x -> Varied -> Varied
 
-instance (Selector s, GVary a) => GUnlabeledFieldVary (S1 ('MetaSel 'Nothing u s l) a) where
+instance {-# OVERLAPPING #-} (GVary a) => GUnlabeledFieldVary (S1 ('MetaSel 'Nothing u s l) a) where
   gUpdateUnlabeledFieldVariance base index m@(M1 s) hm =
     let sn = show index
     in gUpdateVariance (base ++ "." ++ sn) s hm
 
-instance (GVary (S1 s a)) => GUnlabeledFieldVary (S1 s a) where
+instance {-# OVERLAPPABLE #-} (GVary (S1 s a)) => GUnlabeledFieldVary (S1 s a) where
   gUpdateUnlabeledFieldVariance base _ = gUpdateVariance base
 
 instance (Vary a) => GUnlabeledFieldVary (K1 r a) where
