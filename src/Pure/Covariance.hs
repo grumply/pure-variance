@@ -149,4 +149,7 @@ correlation c = do
   cov <- covariance c
   sdx <- stdDev_x c
   sdy <- stdDev_y c
-  pure $ cov / (sdx * sdy)
+  pure $
+    if sdx == 0 || sdy == 0
+    then 0
+    else cov / (sdx * sdy)
