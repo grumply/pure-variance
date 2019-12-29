@@ -3,6 +3,7 @@ module Pure.Covariance (Covariance,covary,covaries,covariance,count,meanx,meany,
 import Pure.Data.JSON (ToJSON,FromJSON)
 import Pure.Variance (Vary())
 
+import qualified Data.Foldable as Foldable
 import Data.Maybe (fromMaybe)
 import GHC.Generics (Generic)
 
@@ -113,7 +114,7 @@ covary f g a Covariance {..} =
 
 {-# INLINE covaries #-}
 covaries :: (Foldable f, Real x, Real y) => (a -> x) -> (a -> y) -> f a -> Covariance
-covaries f g = Prelude.foldr (covary f g) mempty
+covaries f g = Foldable.foldl' (flip (covary f g)) mempty
 
 {-# INLINE covariance #-}
 covariance :: Covariance -> Maybe Double

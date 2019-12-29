@@ -3,6 +3,7 @@ module Pure.Variance (Variance,minimum_,maximum_,mean,mean2,count,stdDev,varianc
 import Pure.Data.JSON
 import Pure.Data.Txt hiding (count)
 
+import qualified Data.Foldable as Foldable
 import Data.Functor.Sum
 import Data.Functor.Const
 import Data.Functor.Compose
@@ -18,8 +19,6 @@ import GHC.TypeLits
 import Data.HashMap.Strict as HM
 
 import qualified Data.Vector.Generic as V
-
-import Debug.Trace
 
 data Variance
   = Variance
@@ -104,7 +103,7 @@ vary (realToFrac -> a) Variance {..} =
 
 {-# INLINE varies #-}
 varies :: (Foldable f, Real a) => f a -> Variance
-varies = Prelude.foldr vary mempty
+varies = Foldable.foldl' (flip vary) mempty
 
 {-# INLINE variance #-}
 variance :: Variance -> Maybe Double
@@ -136,7 +135,7 @@ lookupVariance s (Varied v) = HM.lookup s v
 
 {-# INLINE varieds #-}
 varieds :: (Foldable f, Vary a) => f a -> Varied
-varieds = Prelude.foldr (varied "") (Varied mempty)
+varieds = Foldable.foldl' (flip (varied "")) (Varied mempty)
 
 class Vary a where
   varied :: String -> a -> Varied -> Varied
@@ -217,8 +216,8 @@ instance {-# OVERLAPPING #-} (Real a, Foldable f, Vary a) => Vary (f (String,a))
           | otherwise = nm ++ "."
     in
       Varied $
-        Prelude.foldr
-          (\(k,v) m ->
+        Foldable.foldl'
+          (\m (k,v) ->
             let n = x ++ k
             in HM.alter (Just . maybe (vary v mempty) (vary v)) n m
           )
@@ -234,8 +233,8 @@ instance {-# OVERLAPPING #-} (Real a, Foldable f, Vary a) => Vary (f (Txt,a)) wh
           | otherwise = nm ++ "."
     in
       Varied $
-        Prelude.foldr
-          (\(k,v) m ->
+        Foldable.foldl'
+          (\m (k,v) ->
             let n = x ++ fromTxt k
             in HM.alter (Just . maybe (vary v mempty) (vary v)) n m
           )
@@ -248,7 +247,7 @@ instance {-# OVERLAPPING #-} (Real a, Vary a, V.Vector v a) => Vary (v a) where
           | otherwise = nm ++ "."
     in
       Varied $
-        V.ifoldr (\i v m ->
+        V.ifoldl' (\m i v ->
           let n = x ++ show i
           in HM.alter (Just . maybe (vary v mempty) (vary v)) n m
         )
