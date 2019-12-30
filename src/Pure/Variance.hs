@@ -1,6 +1,6 @@
 module Pure.Variance
   (Variance
-  ,minimum_,maximum_,mean,mean2,count
+  ,minimum_,maximum_,mean,count
   ,sampleStdDev,populationStdDev
   ,sampleVariance,populationVariance
   ,vary,varies
@@ -77,11 +77,6 @@ mean :: Variance -> Maybe Double
 mean v
   | vCount v == 0 = Nothing
   | otherwise     = Just (vMean v)
-
-mean2 :: Variance -> Maybe Double
-mean2 v
-  | vCount v == 0 = Nothing
-  | otherwise     = Just (vMean2 v)
 
 minimum_ :: Variance -> Maybe Double
 minimum_ v

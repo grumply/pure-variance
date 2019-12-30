@@ -1,6 +1,6 @@
 module Pure.Covariance
   (Covariance,covary,covaries
-  ,count,meanx,meany,meanx2,meany2,c
+  ,count,meanx,meany
   ,sampleCovariance,populationCovariance
   ,sampleVariance_x,populationVariance_x,sampleVariance_y,populationVariance_y
   ,sampleStdDev_x,populationStdDev_x,sampleStdDev_y,populationStdDev_y
@@ -94,25 +94,10 @@ meanx c
   | cCount c == 0 = Nothing
   | otherwise     = Just (cMeanx c)
 
-meanx2 :: Covariance -> Maybe Double
-meanx2 c
-  | cCount c == 0 = Nothing
-  | otherwise     = Just (cMeanx2 c)
-
 meany :: Covariance -> Maybe Double
 meany c
   | cCount c == 0 = Nothing
   | otherwise     = Just (cMeany c)
-
-meany2 :: Covariance -> Maybe Double
-meany2 c
-  | cCount c == 0 = Nothing
-  | otherwise     = Just (cMeany2 c)
-
-c :: Covariance -> Maybe Double
-c cov
-  | cCount cov == 0 = Nothing
-  | otherwise       = Just (cC cov)
 
 {-# RULES
 "covary f g a mempty == Convariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0" forall f g a. covary f g a (Covariance 0 0 0 0 0 0) = Covariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0
