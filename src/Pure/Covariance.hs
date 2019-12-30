@@ -1,13 +1,13 @@
 module Pure.Covariance
   (Covariance,covary,covaries
   ,count,meanx,meany
-  ,sampleCovariance,populationCovariance
-  ,sampleVariance_x,populationVariance_x,sampleVariance_y,populationVariance_y
-  ,sampleStdDev_x,populationStdDev_x,sampleStdDev_y,populationStdDev_y
-  ,sampleCorrelation,populationCorrelation
+  ,covariance,sampleCovariance,populationCovariance
+  ,variance_x,sampleVariance_x,populationVariance_x,variance_y,sampleVariance_y,populationVariance_y
+  ,stdDev_x,sampleStdDev_x,populationStdDev_x,stdDev_y,sampleStdDev_y,populationStdDev_y
+  ,correlation,sampleCorrelation,populationCorrelation
   ,Extract(..),Covaried
   ,lookupCovariance
-  ,covaried,covarieds
+  ,covaried,covariances
   ) where
 
 import Pure.Data.JSON (ToJSON,FromJSON)
@@ -138,6 +138,10 @@ covary f g a Covariance {..} =
 covaries :: (Foldable f, Real x, Real y) => (a -> x) -> (a -> y) -> f a -> Covariance
 covaries f g = Foldable.foldl' (flip (covary f g)) mempty
 
+{-# INLINE covariance #-}
+covariance :: Covariance -> Maybe Double
+covariance = sampleCovariance
+
 {-# INLINE [1] sampleCovariance #-}
 sampleCovariance :: Covariance -> Maybe Double
 sampleCovariance Covariance {..}
@@ -149,6 +153,10 @@ populationCovariance :: Covariance -> Maybe Double
 populationCovariance Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cC / cCount
+
+{-# INLINE variance_x #-}
+variance_x :: Covariance -> Maybe Double
+variance_x = sampleVariance_x
 
 {-# INLINE [1] sampleVariance_x #-}
 sampleVariance_x :: Covariance -> Maybe Double
@@ -162,6 +170,10 @@ populationVariance_x Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeanx2 / cCount
 
+{-# INLINE variance_y #-}
+variance_y :: Covariance -> Maybe Double
+variance_y = sampleVariance_y
+
 {-# INLINE [1] sampleVariance_y #-}
 sampleVariance_y :: Covariance -> Maybe Double
 sampleVariance_y Covariance {..}
@@ -174,6 +186,10 @@ populationVariance_y Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeany2 / cCount
 
+{-# INLINE stdDev_x #-}
+stdDev_x :: Covariance -> Maybe Double
+stdDev_x = sampleStdDev_x
+
 {-# INLINE [1] sampleStdDev_x #-}
 sampleStdDev_x :: Covariance -> Maybe Double
 sampleStdDev_x = fmap sqrt . sampleVariance_x
@@ -181,6 +197,10 @@ sampleStdDev_x = fmap sqrt . sampleVariance_x
 {-# INLINE [1] populationStdDev_x #-}
 populationStdDev_x :: Covariance -> Maybe Double
 populationStdDev_x = fmap sqrt . populationVariance_x
+
+{-# INLINE stdDev_y #-}
+stdDev_y :: Covariance -> Maybe Double
+stdDev_y = sampleStdDev_y
 
 {-# INLINE [1] sampleStdDev_y #-}
 sampleStdDev_y :: Covariance -> Maybe Double
@@ -190,7 +210,10 @@ sampleStdDev_y = fmap sqrt . sampleVariance_y
 populationStdDev_y :: Covariance -> Maybe Double
 populationStdDev_y = fmap sqrt . populationVariance_y
 
--- linear correlation; Pearson
+{-# INLINE correlation #-}
+correlation :: Covariance -> Maybe Double
+correlation = sampleCorrelation
+
 {-# INLINE sampleCorrelation #-}
 sampleCorrelation :: Covariance -> Maybe Double
 sampleCorrelation c = do
@@ -231,10 +254,11 @@ instance Monoid Covaried where
 lookupCovariance :: String -> String -> Covaried -> Maybe Covariance
 lookupCovariance x y (Covaried c) = HM.lookup (x,y) c <|> HM.lookup (y,x) c
 
-{-# INLINE covarieds #-}
-covarieds :: (Foldable f, Extract a) => f a -> Covaried
-covarieds = Foldable.foldl' (flip covaried) (Covaried mempty)
+{-# INLINE covariances #-}
+covariances :: (Foldable f, Extract a) => f a -> Covaried
+covariances = Foldable.foldl' (flip covaried) (Covaried mempty)
 
+{-# INLINE covaried #-}
 covaried :: Extract a => a -> Covaried -> Covaried
 covaried = updateCovaried . flip (extract "") mempty
   where

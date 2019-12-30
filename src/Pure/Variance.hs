@@ -1,11 +1,11 @@
 module Pure.Variance
   (Variance
   ,minimum_,maximum_,mean,count
-  ,sampleStdDev,populationStdDev
-  ,sampleVariance,populationVariance
+  ,stdDev,sampleStdDev,populationStdDev
+  ,variance,sampleVariance,populationVariance
   ,vary,varies
   ,Vary(..),Varied
-  ,lookupVariance,varieds
+  ,lookupVariance,variances
   ) where
 
 import Pure.Data.JSON
@@ -28,8 +28,6 @@ import Data.HashMap.Strict as HM
 import Data.Map as Map
 import Pure.Data.Txt.Trie as Trie
 import qualified Data.Vector.Generic as V
-
-import Debug.Trace
 
 data Variance
   = Variance
@@ -111,6 +109,10 @@ vary (realToFrac -> a) Variance {..} =
 varies :: (Foldable f, Real b) => (a -> b) -> f a -> Variance
 varies f = Foldable.foldl' (\v a -> vary (f a) v) mempty
 
+{-# INLINE variance #-}
+variance :: Variance -> Maybe Double
+variance = sampleVariance
+
 {-# INLINE sampleVariance #-}
 sampleVariance :: Variance -> Maybe Double
 sampleVariance Variance {..}
@@ -122,6 +124,10 @@ populationVariance :: Variance -> Maybe Double
 populationVariance Variance {..}
   | vCount < 2  = Nothing
   | otherwise   = Just $ vMean2 / vCount
+
+{-# INLINE stdDev #-}
+stdDev :: Variance -> Maybe Double
+stdDev = sampleStdDev
 
 {-# INLINE sampleStdDev #-}
 sampleStdDev :: Variance -> Maybe Double
@@ -149,9 +155,9 @@ instance Monoid Varied where
 lookupVariance :: String -> Varied -> Maybe Variance
 lookupVariance s (Varied v) = HM.lookup s v
 
-{-# INLINE varieds #-}
-varieds :: (Foldable f, Vary a) => f a -> Varied
-varieds = Foldable.foldl' (flip (varied "")) (Varied mempty)
+{-# INLINE variances #-}
+variances :: (Foldable f, Vary a) => f a -> Varied
+variances = Foldable.foldl' (flip (varied "")) (Varied mempty)
 
 class Vary a where
   varied :: String -> a -> Varied -> Varied
