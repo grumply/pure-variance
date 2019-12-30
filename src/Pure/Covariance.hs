@@ -1,8 +1,18 @@
-module Pure.Covariance (Covariance,covary,covaries,covariance,count,meanx,meany,meanx2,meany2,c,variance_x,variance_y,stdDev_x,stdDev_y,correlation,Extract(..),Covaried,lookupCovariance,covaried,covarieds) where
+module Pure.Covariance
+  (Covariance,covary,covaries
+  ,count,meanx,meany,meanx2,meany2,c
+  ,sampleCovariance,populationCovariance
+  ,sampleVariance_x,populationVariance_x,sampleVariance_y,populationVariance_y
+  ,sampleStdDev_x,populationStdDev_x,sampleStdDev_y,populationStdDev_y
+  ,sampleCorrelation,populationCorrelation
+  ,Extract(..),Covaried
+  ,lookupCovariance
+  ,covaried,covarieds
+  ) where
 
 import Pure.Data.JSON (ToJSON,FromJSON)
 import Pure.Data.Txt (Txt,fromTxt)
-import Pure.Variance (Vary(),varies,variance,stdDev)
+import Pure.Variance (Vary(),varies,sampleVariance,populationVariance,sampleStdDev,populationStdDev)
 
 import Control.Arrow (first)
 import qualified Data.Foldable as Foldable
@@ -106,10 +116,14 @@ c cov
 
 {-# RULES
 "covary f g a mempty == Convariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0" forall f g a. covary f g a (Covariance 0 0 0 0 0 0) = Covariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0
-"variance_x (covaries f g as) == variance (varies f as)" forall f g as. variance_x (covaries f g as) = variance (varies f as)
-"variance_y (covaries f g as) == variance (varies g as)" forall f g as. variance_y (covaries f g as) = variance (varies g as)
-"stdDev_x (covaries f g as) == stdDev (varies f as)" forall f g as. stdDev_x (covaries f g as) = stdDev (varies f as)
-"stdDev_y (covaries f g as) == stdDev (varies g as)" forall f g as. stdDev_y (covaries f g as) = stdDev (varies g as)
+"sampleVariance_x (covaries f g as) == sampleVariance (varies f as)" forall f g as. sampleVariance_x (covaries f g as) = sampleVariance (varies f as)
+"populationVariance_x (covaries f g as) == populationVariance (varies f as)" forall f g as. populationVariance_x (covaries f g as) = populationVariance (varies f as)
+"sampleVariance_y (covaries f g as) == sampleVariance (varies g as)" forall f g as. sampleVariance_y (covaries f g as) = sampleVariance (varies g as)
+"populationVariance_y (covaries f g as) == populationVariance (varies g as)" forall f g as. populationVariance_y (covaries f g as) = populationVariance (varies g as)
+"sampleStdDev_x (covaries f g as) == sampleStdDev (varies f as)" forall f g as. sampleStdDev_x (covaries f g as) = sampleStdDev (varies f as)
+"populationStdDev_x (covaries f g as) == populationStdDev (varies f as)" forall f g as. populationStdDev_x (covaries f g as) = populationStdDev (varies f as)
+"sampleStdDev_y (covaries f g as) == sampleStdDev (varies g as)" forall f g as. sampleStdDev_y (covaries f g as) = sampleStdDev (varies g as)
+"populationStdDev_y (covaries f g as) == populationStdDev (varies g as)" forall f g as. populationStdDev_y (covaries f g as) = populationStdDev (varies g as)
   #-}
 
 {-# INLINE [1] covary #-}
@@ -136,39 +150,76 @@ covary f g a Covariance {..} =
 covaries :: (Foldable f, Real x, Real y) => (a -> x) -> (a -> y) -> f a -> Covariance
 covaries f g = Foldable.foldl' (flip (covary f g)) mempty
 
-{-# INLINE [1] covariance #-}
-covariance :: Covariance -> Maybe Double
-covariance Covariance {..}
+{-# INLINE [1] sampleCovariance #-}
+sampleCovariance :: Covariance -> Maybe Double
+sampleCovariance Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cC / (cCount - 1)
 
-{-# INLINE [1] variance_x #-}
-variance_x :: Covariance -> Maybe Double
-variance_x Covariance {..}
+{-# INLINE [1] populationCovariance #-}
+populationCovariance :: Covariance -> Maybe Double
+populationCovariance Covariance {..}
+  | cCount < 2  = Nothing
+  | otherwise   = Just $ cC / cCount
+
+{-# INLINE [1] sampleVariance_x #-}
+sampleVariance_x :: Covariance -> Maybe Double
+sampleVariance_x Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeanx2 / (cCount - 1)
 
-{-# INLINE [1] variance_y #-}
-variance_y :: Covariance -> Maybe Double
-variance_y Covariance {..}
+{-# INLINE [1] populationVariance_x #-}
+populationVariance_x :: Covariance -> Maybe Double
+populationVariance_x Covariance {..}
+  | cCount < 2  = Nothing
+  | otherwise   = Just $ cMeanx2 / cCount
+
+{-# INLINE [1] sampleVariance_y #-}
+sampleVariance_y :: Covariance -> Maybe Double
+sampleVariance_y Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeany2 / (cCount - 1)
 
-{-# INLINE [1] stdDev_x #-}
-stdDev_x :: Covariance -> Maybe Double
-stdDev_x = fmap sqrt . variance_x
+{-# INLINE [1] populationVariance_y #-}
+populationVariance_y :: Covariance -> Maybe Double
+populationVariance_y Covariance {..}
+  | cCount < 2  = Nothing
+  | otherwise   = Just $ cMeany2 / cCount
 
-{-# INLINE [1] stdDev_y #-}
-stdDev_y :: Covariance -> Maybe Double
-stdDev_y = fmap sqrt . variance_y
+{-# INLINE [1] sampleStdDev_x #-}
+sampleStdDev_x :: Covariance -> Maybe Double
+sampleStdDev_x = fmap sqrt . sampleVariance_x
+
+{-# INLINE [1] populationStdDev_x #-}
+populationStdDev_x :: Covariance -> Maybe Double
+populationStdDev_x = fmap sqrt . populationVariance_x
+
+{-# INLINE [1] sampleStdDev_y #-}
+sampleStdDev_y :: Covariance -> Maybe Double
+sampleStdDev_y = fmap sqrt . sampleVariance_y
+
+{-# INLINE [1] populationStdDev_y #-}
+populationStdDev_y :: Covariance -> Maybe Double
+populationStdDev_y = fmap sqrt . populationVariance_y
 
 -- linear correlation; Pearson
-{-# INLINE correlation #-}
-correlation :: Covariance -> Maybe Double
-correlation c = do
-  cov <- covariance c
-  sdx <- stdDev_x c
-  sdy <- stdDev_y c
+{-# INLINE sampleCorrelation #-}
+sampleCorrelation :: Covariance -> Maybe Double
+sampleCorrelation c = do
+  cov <- sampleCovariance c
+  sdx <- sampleStdDev_x c
+  sdy <- sampleStdDev_y c
+  pure $
+    if sdx == 0 || sdy == 0
+    then 0
+    else cov / (sdx * sdy)
+
+{-# INLINE populationCorrelation #-}
+populationCorrelation :: Covariance -> Maybe Double
+populationCorrelation c = do
+  cov <- populationCovariance c
+  sdx <- populationStdDev_x c
+  sdy <- populationStdDev_y c
   pure $
     if sdx == 0 || sdy == 0
     then 0

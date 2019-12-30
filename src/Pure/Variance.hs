@@ -1,4 +1,12 @@
-module Pure.Variance (Variance,minimum_,maximum_,mean,mean2,count,stdDev,variance,vary,varies,Vary(..),Varied,lookupVariance,varieds) where
+module Pure.Variance
+  (Variance
+  ,minimum_,maximum_,mean,mean2,count
+  ,sampleStdDev,populationStdDev
+  ,sampleVariance,populationVariance
+  ,vary,varies
+  ,Vary(..),Varied
+  ,lookupVariance,varieds
+  ) where
 
 import Pure.Data.JSON
 import Pure.Data.Txt hiding (count)
@@ -105,15 +113,25 @@ vary (realToFrac -> a) Variance {..} =
 varies :: (Foldable f, Real b) => (a -> b) -> f a -> Variance
 varies f = Foldable.foldl' (\v a -> vary (f a) v) mempty
 
-{-# INLINE variance #-}
-variance :: Variance -> Maybe Double
-variance Variance {..}
+{-# INLINE sampleVariance #-}
+sampleVariance :: Variance -> Maybe Double
+sampleVariance Variance {..}
   | vCount < 2  = Nothing
   | otherwise   = Just $ vMean2 / (vCount - 1)
 
-{-# INLINE stdDev #-}
-stdDev :: Variance -> Maybe Double
-stdDev = fmap sqrt . variance
+{-# INLINE populationVariance #-}
+populationVariance :: Variance -> Maybe Double
+populationVariance Variance {..}
+  | vCount < 2  = Nothing
+  | otherwise   = Just $ vMean2 / vCount
+
+{-# INLINE sampleStdDev #-}
+sampleStdDev :: Variance -> Maybe Double
+sampleStdDev = fmap sqrt . sampleVariance
+
+{-# INLINE populationStdDev #-}
+populationStdDev :: Variance -> Maybe Double
+populationStdDev = fmap sqrt . populationVariance
 
 newtype Varied = Varied (HashMap String Variance)
  deriving (Show,Eq,Generic)
