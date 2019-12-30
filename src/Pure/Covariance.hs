@@ -405,7 +405,9 @@ instance {-# OVERLAPPABLE #-}
          ) => GExtract (S1 s a) where
   gExtract base m@(M1 s) xs =
     let sn = selName m
-    in gExtract (base ++ "." ++ sn) s xs
+        x | sn == ""  = base
+          | otherwise = base ++ "." ++ sn
+    in gExtract x s xs
 
 instance Extract a => GExtract (K1 r a) where
   gExtract base (K1 a) = extract base a

@@ -28,6 +28,8 @@ import Data.HashMap.Strict as HM
 
 import qualified Data.Vector.Generic as V
 
+import Debug.Trace
+
 data Variance
   = Variance
     { vCount   :: {-# UNPACK #-} !Double
@@ -297,7 +299,9 @@ instance {-# OVERLAPPABLE #-}
          ) => GVary (S1 s a)  where
   gUpdateVariance base m@(M1 s) hm =
     let sn = selName m
-    in gUpdateVariance (base ++ "." ++ sn) s hm
+        x | sn == ""  = base
+          | otherwise = base ++ "." ++ sn
+    in gUpdateVariance x s hm
 
 instance (Vary a) => GVary (K1 r a) where
   gUpdateVariance base (K1 a) hm =
