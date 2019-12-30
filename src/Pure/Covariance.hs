@@ -14,6 +14,7 @@ import Pure.Data.JSON (ToJSON,FromJSON)
 import Pure.Data.Txt (Txt,fromTxt)
 import Pure.Variance (Vary(),varies,sampleVariance,populationVariance,sampleStdDev,populationStdDev)
 
+import Control.Applicative ((<|>))
 import Control.Arrow (first)
 import qualified Data.Foldable as Foldable
 import Data.Functor.Sum
@@ -226,7 +227,7 @@ instance Monoid Covaried where
 
 {-# INLINE lookupCovariance #-}
 lookupCovariance :: String -> String -> Covaried -> Maybe Covariance
-lookupCovariance x y (Covaried c) = HM.lookup (x,y) c
+lookupCovariance x y (Covaried c) = HM.lookup (x,y) c <|> HM.lookup (y,x) c
 
 {-# INLINE covarieds #-}
 covarieds :: (Foldable f, Extract a) => f a -> Covaried
