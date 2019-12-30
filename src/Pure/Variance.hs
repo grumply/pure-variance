@@ -25,7 +25,8 @@ import GHC.Natural
 import GHC.TypeLits
 
 import Data.HashMap.Strict as HM
-
+import Data.Map as Map
+import Pure.Data.Txt.Trie as Trie
 import qualified Data.Vector.Generic as V
 
 import Debug.Trace
@@ -222,51 +223,57 @@ instance {-# OVERLAPPING #-} Vary Word32 where
 instance {-# OVERLAPPING #-} Vary Word64 where
   varied = gUpdateRealVariance
 
-instance {-# OVERLAPPING #-} (Real a, Vary a) => Vary (HashMap String a) where
+instance {-# OVERLAPPING #-} (Vary a) => Vary (TxtTrie a) where
+  varied nm a m = varied nm (Trie.toList a) m
+
+instance {-# OVERLAPPING #-} (Vary a) => Vary (Map String a) where
+  varied nm a m = varied nm (Map.toList a) m
+
+instance {-# OVERLAPPING #-} (Vary a) => Vary (Map Txt a) where
+  varied nm a m = varied nm (Map.toList a) m
+
+instance {-# OVERLAPPING #-} (Vary a) => Vary (HashMap String a) where
   varied nm a hm = varied nm (HM.toList a) hm
 
-instance {-# OVERLAPPING #-} (Real a, Foldable f, Vary a) => Vary (f (String,a)) where
-  varied nm a (Varied hm) =
+instance {-# OVERLAPPING #-} (Foldable f, Vary a) => Vary (f (String,a)) where
+  varied nm a v =
     let x | nm == ""  = nm
           | otherwise = nm ++ "."
     in
-      Varied $
-        Foldable.foldl'
-          (\m (k,v) ->
-            let n = x ++ k
-            in HM.alter (Just . maybe (vary v mempty) (vary v)) n m
-          )
-          hm
-          a
-
-instance {-# OVERLAPPING #-} (Real a, Vary a) => Vary (HashMap Txt a) where
-  varied nm a hm = varied nm (HM.toList a) hm
-
-instance {-# OVERLAPPING #-} (Real a, Foldable f, Vary a) => Vary (f (Txt,a)) where
-  varied nm a (Varied hm) =
-    let x | nm == ""  = nm
-          | otherwise = nm ++ "."
-    in
-      Varied $
-        Foldable.foldl'
-          (\m (k,v) ->
-            let n = x ++ fromTxt k
-            in HM.alter (Just . maybe (vary v mempty) (vary v)) n m
-          )
-          hm
-          a
-
-instance {-# OVERLAPPING #-} (Real a, Vary a, V.Vector v a) => Vary (v a) where
-  varied nm a (Varied hm) =
-    let x | nm == ""  = nm
-          | otherwise = nm ++ "."
-    in
-      Varied $
-        V.ifoldl' (\m i v ->
-          let n = x ++ show i
-          in HM.alter (Just . maybe (vary v mempty) (vary v)) n m
+      Foldable.foldl'
+        (\m (k,v) ->
+          let n = x ++ k
+          in varied n v m
         )
-        hm
+        v
+        a
+
+instance {-# OVERLAPPING #-} (Vary a) => Vary (HashMap Txt a) where
+  varied nm a hm = varied nm (HM.toList a) hm
+
+instance {-# OVERLAPPING #-} (Foldable f, Vary a) => Vary (f (Txt,a)) where
+  varied nm a v =
+    let x | nm == ""  = nm
+          | otherwise = nm ++ "."
+    in
+      Foldable.foldl'
+        (\m (k,v) ->
+          let n = x ++ fromTxt k
+          in varied n v m
+        )
+        v
+        a
+
+instance {-# OVERLAPPING #-} (Vary a, V.Vector v a) => Vary (v a) where
+  varied nm a v =
+    let x | nm == ""  = nm
+          | otherwise = nm ++ "."
+    in
+      V.ifoldl' (\m i v ->
+          let n = x ++ show i
+          in varied n v m
+        )
+        v
         a
 
 class GVary a where
@@ -275,16 +282,14 @@ class GVary a where
 instance ( Datatype d
          , GVary a
          ) => GVary (D1 d a) where
-  gUpdateVariance base m@(M1 d) hm =
-    let dn = datatypeName m
-    in gUpdateVariance (if Prelude.null base then dn else base ++ "." ++ dn) d hm
+  gUpdateVariance base (M1 d) hm =
+    gUpdateVariance base d hm
 
 instance ( Constructor c
          , GVary a
          ) => GVary (C1 c a) where
-  gUpdateVariance base m@(M1 c) hm =
-    let cn = conName m
-    in gUpdateVariance (base ++ "." ++ cn) c hm
+  gUpdateVariance base (M1 c) hm =
+    gUpdateVariance base c hm
 
 instance {-# OVERLAPPING #-}
          ( Selector ('MetaSel 'Nothing u s l)
@@ -299,8 +304,9 @@ instance {-# OVERLAPPABLE #-}
          ) => GVary (S1 s a)  where
   gUpdateVariance base m@(M1 s) hm =
     let sn = selName m
-        x | sn == ""  = base
-          | otherwise = base ++ "." ++ sn
+        x | sn == ""   = base
+          | base == "" = sn
+          | otherwise  = base ++ "." ++ sn
     in gUpdateVariance x s hm
 
 instance (Vary a) => GVary (K1 r a) where
@@ -315,7 +321,7 @@ instance {-# OVERLAPPING #-}
          ( Selector ('MetaSel 'Nothing u s l)
          , GRecordVary (S1 ('MetaSel 'Nothing u s l) a :*: sb)
          ) => GVary (S1 ('MetaSel 'Nothing u s l) a :*: sb) where
-  gUpdateVariance base ss hm = gUpdateRecordVariance base 0 ss hm
+  gUpdateVariance base ss hm = gUpdateRecordVariance base 1 ss hm
 
 instance {-# OVERLAPPABLE #-}
          ( GVary a
@@ -329,14 +335,18 @@ class GUnlabeledFieldVary a where
 instance {-# OVERLAPPING #-} (GVary a) => GUnlabeledFieldVary (S1 ('MetaSel 'Nothing u s l) a) where
   gUpdateUnlabeledFieldVariance base index m@(M1 s) hm =
     let sn = show index
-    in gUpdateVariance (base ++ "." ++ sn) s hm
+        x | base == "" = sn
+          | otherwise  = base ++ "." ++ sn
+    in gUpdateVariance x s hm
 
 instance {-# OVERLAPPABLE #-} (GVary (S1 s a)) => GUnlabeledFieldVary (S1 s a) where
   gUpdateUnlabeledFieldVariance base _ = gUpdateVariance base
 
 instance (Vary a) => GUnlabeledFieldVary (K1 r a) where
   gUpdateUnlabeledFieldVariance base index (K1 a) hm =
-    varied (base ++ "." ++ show index) a hm
+    let x | base == "" = show index
+          | otherwise  = base ++ "." ++ show index
+    in varied x a hm
 
 class GRecordVary a where
   gUpdateRecordVariance :: String -> Int -> a x -> Varied -> Varied
@@ -352,5 +362,6 @@ instance {-# OVERLAPPING #-}
          , GRecordVary sb
          ) => GRecordVary (S1 sa a :*: sb) where
    gUpdateRecordVariance base index (sa :*: sb) hm =
-     let nm = base ++ "." ++ show index
-     in gUpdateRecordVariance base (index + 1) sb (gUpdateVariance nm sa hm)
+     let x | base == "" = show index
+           | otherwise  = base ++ "." ++ show index
+     in gUpdateRecordVariance base (index + 1) sb (gUpdateVariance x sa hm)

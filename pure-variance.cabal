@@ -20,6 +20,8 @@ library
     , pure-txt >= 0.7 && < 1
     , pure-json >= 0.7 && < 1
     , unordered-containers
+    , containers
+    , pure-txt-trie
     , vector
 
   default-extensions:

@@ -31,6 +31,8 @@ import GHC.Natural
 import GHC.TypeLits
 
 import Data.HashMap.Strict as HM
+import Data.Map as Map
+import Pure.Data.Txt.Trie as Trie
 
 import qualified Data.Vector.Generic as V
 
@@ -311,6 +313,15 @@ instance {-# OVERLAPPING #-} Extract Word32 where
 instance {-# OVERLAPPING #-} Extract Word64 where
   extract = gExtractReal
 
+instance {-# OVERLAPPING #-} (Extract a) => Extract (TxtTrie a) where
+  extract nm a m = extract nm (Trie.toList a) m
+
+instance {-# OVERLAPPING #-} (Extract a) => Extract (Map String a) where
+  extract nm a m = extract nm (Map.toList a) m
+
+instance {-# OVERLAPPING #-} (Extract a) => Extract (Map Txt a) where
+  extract nm a m = extract nm (Map.toList a) m
+
 instance {-# OVERLAPPING #-} (Extract a) => Extract (HashMap String a) where
   extract nm a xs =
     let x | nm == "" = nm
@@ -319,7 +330,7 @@ instance {-# OVERLAPPING #-} (Extract a) => Extract (HashMap String a) where
       Foldable.foldl'
         (\m (k,v) ->
           let n = x ++ k
-          in extract n a m
+          in extract n v m
         )
         xs
         (HM.toList a)
@@ -332,7 +343,7 @@ instance {-# OVERLAPPING #-} (Extract a) => Extract (HashMap Txt a) where
       Foldable.foldl'
         (\m (k,v) ->
           let n = x ++ fromTxt k
-          in extract n a m
+          in extract n v m
         )
         xs
         (HM.toList a)
@@ -345,7 +356,7 @@ instance {-# OVERLAPPING #-} (Extract a, Foldable f) => Extract (f (String,a)) w
       Foldable.foldl'
         (\m (k,v) ->
           let n = x ++ k
-          in extract n a m
+          in extract n v m
         )
         xs
         a
@@ -358,7 +369,7 @@ instance {-# OVERLAPPING #-} (Extract a, Foldable f) => Extract (f (Txt,a)) wher
       Foldable.foldl'
         (\m (k,v) ->
           let n = x ++ fromTxt k
-          in extract n a m
+          in extract n v m
         )
         xs
         a
@@ -370,7 +381,7 @@ instance {-# OVERLAPPING #-} (Extract a, V.Vector v a) => Extract (v a) where
     in
       V.ifoldl' (\m i v ->
         let n = x ++ show i
-        in extract n a m
+        in extract n v m
       )
       xs
       a
@@ -381,16 +392,14 @@ class GExtract a where
 instance ( Datatype d
          , GExtract a
          ) => GExtract (D1 d a) where
-  gExtract base m@(M1 d) xs =
-    let dn = datatypeName m
-    in gExtract (if Prelude.null base then dn else base ++ "." ++ dn) d xs
+  gExtract base (M1 d) xs =
+    gExtract base d xs
 
 instance ( Constructor c
          , GExtract a
          ) => GExtract (C1 c a) where
-  gExtract base m@(M1 c) xs =
-    let cn = conName m
-    in gExtract (base ++ "." ++ cn) c xs
+  gExtract base (M1 c) xs =
+    gExtract base c xs
 
 instance {-# OVERLAPPING #-}
          ( Selector ('MetaSel 'Nothing u s l)
@@ -405,8 +414,9 @@ instance {-# OVERLAPPABLE #-}
          ) => GExtract (S1 s a) where
   gExtract base m@(M1 s) xs =
     let sn = selName m
-        x | sn == ""  = base
-          | otherwise = base ++ "." ++ sn
+        x | sn == ""   = base
+          | base == "" = sn
+          | otherwise  = base ++ "." ++ sn
     in gExtract x s xs
 
 instance Extract a => GExtract (K1 r a) where
@@ -420,7 +430,7 @@ instance {-# OVERLAPPING #-}
          ( Selector ('MetaSel 'Nothing u s l)
          , GRecordExtract (S1 ('MetaSel 'Nothing u s l) a :*: sb)
          ) => GExtract (S1 ('MetaSel 'Nothing u s l) a :*: sb) where
-  gExtract base ss xs = gRecordExtract base 0 ss xs
+  gExtract base ss xs = gRecordExtract base 1 ss xs
 
 instance {-# OVERLAPPABLE #-}
          ( GExtract a
@@ -434,14 +444,18 @@ class GUnlabeledFieldExtract a where
 instance {-# OVERLAPPING #-} (GExtract a) => GUnlabeledFieldExtract (S1 ('MetaSel 'Nothing u s l) a) where
   gUnlabeledFieldExtract base index m@(M1 s) xs =
     let sn = show index
-    in gExtract (base ++ "." ++ sn) s xs
+        x | base == "" = sn
+          | otherwise  = base ++ "." ++ sn
+    in gExtract x s xs
 
 instance {-# OVERLAPPABLE #-} (GExtract (S1 s a)) => GUnlabeledFieldExtract (S1 s a) where
   gUnlabeledFieldExtract base _ = gExtract base
 
 instance Extract a => GUnlabeledFieldExtract (K1 r a) where
   gUnlabeledFieldExtract base index (K1 a) xs =
-    extract (base ++ "." ++ show index) a xs
+    let x | base == "" = show index
+          | otherwise  = base ++ "." ++ show index
+    in extract x a xs
 
 class GRecordExtract a where
   gRecordExtract :: String -> Int -> a x -> [(String,Double)] -> [(String,Double)]
@@ -457,5 +471,6 @@ instance {-# OVERLAPPING #-}
          , GRecordExtract sb
          ) => GRecordExtract (S1 sa a :*: sb) where
   gRecordExtract base index (sa :*: sb) xs =
-    let nm = base ++ "." ++ show index
-    in gRecordExtract base (index + 1) sb (gExtract nm sa xs)
+    let x | base == "" = show index
+          | otherwise  = base ++ "." ++ show index
+    in gRecordExtract base (index + 1) sb (gExtract x sa xs)
