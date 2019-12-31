@@ -5,7 +5,7 @@ module Pure.Covariance
   ,variance_x,sampleVariance_x,populationVariance_x,variance_y,sampleVariance_y,populationVariance_y
   ,stdDev_x,sampleStdDev_x,populationStdDev_x,stdDev_y,sampleStdDev_y,populationStdDev_y
   ,correlation,sampleCorrelation,populationCorrelation
-  ,Extract(..),Covaried
+  ,Covary(..),Covariances
   ,lookupCovariance
   ,covaried,covariances
   ) where
@@ -236,117 +236,117 @@ populationCorrelation c = do
     then 0
     else cov / (sdx * sdy)
 
-newtype Covaried = Covaried (HashMap (String,String) Covariance)
+newtype Covariances = Covariances (HashMap (String,String) Covariance)
   deriving (Show,Eq,Generic)
 
-instance Semigroup Covaried where
+instance Semigroup Covariances where
   {-# INLINE (<>) #-}
-  (<>) (Covaried c1) (Covaried c2)
-    | HM.null c1 = Covaried c2
-    | HM.null c2 = Covaried c1
-    | otherwise  = Covaried $ HM.unionWith (<>) c1 c2
+  (<>) (Covariances c1) (Covariances c2)
+    | HM.null c1 = Covariances c2
+    | HM.null c2 = Covariances c1
+    | otherwise  = Covariances $ HM.unionWith (<>) c1 c2
 
-instance Monoid Covaried where
+instance Monoid Covariances where
   {-# INLINE mempty #-}
-  mempty = Covaried mempty
+  mempty = Covariances mempty
 
 {-# INLINE lookupCovariance #-}
-lookupCovariance :: String -> String -> Covaried -> Maybe Covariance
-lookupCovariance x y (Covaried c) = HM.lookup (x,y) c <|> HM.lookup (y,x) c
+lookupCovariance :: String -> String -> Covariances -> Maybe Covariance
+lookupCovariance x y (Covariances c) = HM.lookup (x,y) c <|> HM.lookup (y,x) c
 
 {-# INLINE covariances #-}
-covariances :: (Foldable f, Extract a) => f a -> Covaried
-covariances = Foldable.foldl' (flip covaried) (Covaried mempty)
+covariances :: (Foldable f, Covary a) => f a -> Covariances
+covariances = Foldable.foldl' (flip covaried) (Covariances mempty)
 
 {-# INLINE covaried #-}
-covaried :: Extract a => a -> Covaried -> Covaried
-covaried = updateCovaried . flip (extract "") mempty
+covaried :: Covary a => a -> Covariances -> Covariances
+covaried = updateCovariances . flip (extract "") mempty
   where
-    {-# INLINE updateCovaried #-}
-    updateCovaried :: [(String,Double)] -> Covaried -> Covaried
-    updateCovaried cvs hm = hm <> Covaried (HM.fromList (fmap analyze pairs))
+    {-# INLINE updateCovariances #-}
+    updateCovariances :: [(String,Double)] -> Covariances -> Covariances
+    updateCovariances cvs hm = hm <> Covariances (HM.fromList (fmap analyze pairs))
       where
         analyze ((x,xd),(y,yd)) = ((x,y),covary fst snd (xd,yd) mempty)
         pairs = [(x,y) | (x:ys) <- tails cvs, y <- ys]
 
-instance {-# OVERLAPPING #-} (Extract a,Extract b) => Extract (a,b)
-instance {-# OVERLAPPING #-} (Extract a,Extract b,Extract c) => Extract (a,b,c)
-instance {-# OVERLAPPING #-} (Extract a,Extract b,Extract c,Extract d) => Extract (a,b,c,d)
-instance {-# OVERLAPPING #-} (Extract a,Extract b,Extract c,Extract d,Extract e) => Extract (a,b,c,d,e)
-instance {-# OVERLAPPING #-} (Extract a,Extract b,Extract c,Extract d,Extract e,Extract f) => Extract (a,b,c,d,e,f)
-instance {-# OVERLAPPING #-} (Extract a,Extract b,Extract c,Extract d,Extract e,Extract f,Extract g) => Extract (a,b,c,d,e,f,g)
+instance {-# OVERLAPPING #-} (Covary a,Covary b) => Covary (a,b)
+instance {-# OVERLAPPING #-} (Covary a,Covary b,Covary c) => Covary (a,b,c)
+instance {-# OVERLAPPING #-} (Covary a,Covary b,Covary c,Covary d) => Covary (a,b,c,d)
+instance {-# OVERLAPPING #-} (Covary a,Covary b,Covary c,Covary d,Covary e) => Covary (a,b,c,d,e)
+instance {-# OVERLAPPING #-} (Covary a,Covary b,Covary c,Covary d,Covary e,Covary f) => Covary (a,b,c,d,e,f)
+instance {-# OVERLAPPING #-} (Covary a,Covary b,Covary c,Covary d,Covary e,Covary f,Covary g) => Covary (a,b,c,d,e,f,g)
 
-instance {-# OVERLAPPING #-} (Extract a,Extract b) => Extract (Either a b)
+instance {-# OVERLAPPING #-} (Covary a,Covary b) => Covary (Either a b)
 
-instance {-# OVERLAPPING #-} (Extract (f a), Extract (g a)) => Extract (Sum f g a)
-instance {-# OVERLAPPING #-} (Extract (f a), Extract (g a)) => Extract (Product f g a)
-instance {-# OVERLAPPING #-} (Extract a) => Extract (Const a b)
-instance {-# OVERLAPPING #-} (Extract a) => Extract (Identity a)
-instance {-# OVERLAPPING #-} (Extract (f ( g a))) => Extract (Compose f g a)
+instance {-# OVERLAPPING #-} (Covary (f a), Covary (g a)) => Covary (Sum f g a)
+instance {-# OVERLAPPING #-} (Covary (f a), Covary (g a)) => Covary (Product f g a)
+instance {-# OVERLAPPING #-} (Covary a) => Covary (Const a b)
+instance {-# OVERLAPPING #-} (Covary a) => Covary (Identity a)
+instance {-# OVERLAPPING #-} (Covary (f ( g a))) => Covary (Compose f g a)
 
-gExtractReal :: (Real a) => String -> a -> [(String,Double)] -> [(String,Double)]
-gExtractReal nm a xs = (nm,realToFrac a) : xs
+gCovaryReal :: (Real a) => String -> a -> [(String,Double)] -> [(String,Double)]
+gCovaryReal nm a xs = (nm,realToFrac a) : xs
 
-class Extract a where
+class Covary a where
   extract :: String -> a -> [(String,Double)] -> [(String,Double)]
-  default extract :: (Generic a, GExtract (Rep a)) => String -> a -> [(String,Double)] -> [(String,Double)]
-  extract nm = gExtract nm . from
+  default extract :: (Generic a, GCovary (Rep a)) => String -> a -> [(String,Double)] -> [(String,Double)]
+  extract nm = gCovary nm . from
 
-instance {-# OVERLAPPABLE #-} Extract a where
+instance {-# OVERLAPPABLE #-} Covary a where
   extract _ _ = id
 
-instance {-# OVERLAPPING #-} Extract Double where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Double where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Float where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Float where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Int where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Int where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Int8 where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Int8 where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Int16 where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Int16 where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Int32 where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Int32 where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Int64 where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Int64 where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Integer where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Integer where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Natural where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Natural where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Word where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Word where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Word8 where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Word8 where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Word16 where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Word16 where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Word32 where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Word32 where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} Extract Word64 where
-  extract = gExtractReal
+instance {-# OVERLAPPING #-} Covary Word64 where
+  extract = gCovaryReal
 
-instance {-# OVERLAPPING #-} (Extract a) => Extract (TxtTrie a) where
+instance {-# OVERLAPPING #-} (Covary a) => Covary (TxtTrie a) where
   extract nm a m = extract nm (Trie.toList a) m
 
-instance {-# OVERLAPPING #-} (Extract a) => Extract (Map String a) where
+instance {-# OVERLAPPING #-} (Covary a) => Covary (Map String a) where
   extract nm a m = extract nm (Map.toList a) m
 
-instance {-# OVERLAPPING #-} (Extract a) => Extract (Map Txt a) where
+instance {-# OVERLAPPING #-} (Covary a) => Covary (Map Txt a) where
   extract nm a m = extract nm (Map.toList a) m
 
-instance {-# OVERLAPPING #-} (Extract a) => Extract (HashMap String a) where
+instance {-# OVERLAPPING #-} (Covary a) => Covary (HashMap String a) where
   extract nm a xs =
     let x | nm == "" = nm
           | otherwise = nm ++ "."
@@ -359,7 +359,7 @@ instance {-# OVERLAPPING #-} (Extract a) => Extract (HashMap String a) where
         xs
         (HM.toList a)
 
-instance {-# OVERLAPPING #-} (Extract a) => Extract (HashMap Txt a) where
+instance {-# OVERLAPPING #-} (Covary a) => Covary (HashMap Txt a) where
   extract nm a xs =
     let x | nm == "" = nm
           | otherwise = nm ++ "."
@@ -372,7 +372,7 @@ instance {-# OVERLAPPING #-} (Extract a) => Extract (HashMap Txt a) where
         xs
         (HM.toList a)
 
-instance {-# OVERLAPPING #-} (Extract a, Foldable f) => Extract (f (String,a)) where
+instance {-# OVERLAPPING #-} (Covary a, Foldable f) => Covary (f (String,a)) where
   extract nm a xs =
     let x | nm == "" = nm
           | otherwise = nm ++ "."
@@ -385,7 +385,7 @@ instance {-# OVERLAPPING #-} (Extract a, Foldable f) => Extract (f (String,a)) w
         xs
         a
 
-instance {-# OVERLAPPING #-} (Extract a, Foldable f) => Extract (f (Txt,a)) where
+instance {-# OVERLAPPING #-} (Covary a, Foldable f) => Covary (f (Txt,a)) where
   extract nm a xs =
     let x | nm == "" = nm
           | otherwise = nm ++ "."
@@ -398,7 +398,7 @@ instance {-# OVERLAPPING #-} (Extract a, Foldable f) => Extract (f (Txt,a)) wher
         xs
         a
 
-instance {-# OVERLAPPING #-} (Extract a, V.Vector v a) => Extract (v a) where
+instance {-# OVERLAPPING #-} (Covary a, V.Vector v a) => Covary (v a) where
   extract nm a xs =
     let x | nm == "" = nm
           | otherwise = nm ++ "."
@@ -410,91 +410,91 @@ instance {-# OVERLAPPING #-} (Extract a, V.Vector v a) => Extract (v a) where
       xs
       a
 
-class GExtract a where
-  gExtract :: String -> a x -> [(String,Double)] -> [(String,Double)]
+class GCovary a where
+  gCovary :: String -> a x -> [(String,Double)] -> [(String,Double)]
 
 instance ( Datatype d
-         , GExtract a
-         ) => GExtract (D1 d a) where
-  gExtract base (M1 d) xs =
-    gExtract base d xs
+         , GCovary a
+         ) => GCovary (D1 d a) where
+  gCovary base (M1 d) xs =
+    gCovary base d xs
 
 instance ( Constructor c
-         , GExtract a
-         ) => GExtract (C1 c a) where
-  gExtract base (M1 c) xs =
-    gExtract base c xs
+         , GCovary a
+         ) => GCovary (C1 c a) where
+  gCovary base (M1 c) xs =
+    gCovary base c xs
 
 instance {-# OVERLAPPING #-}
          ( Selector ('MetaSel 'Nothing u s l)
-         , GUnlabeledFieldExtract a
-         ) => GExtract (S1 ('MetaSel 'Nothing u s l) a) where
-  gExtract base m@(M1 s) xs =
-    gUnlabeledFieldExtract base 1 s xs
+         , GUnlabeledFieldCovary a
+         ) => GCovary (S1 ('MetaSel 'Nothing u s l) a) where
+  gCovary base m@(M1 s) xs =
+    gUnlabeledFieldCovary base 1 s xs
 
 instance {-# OVERLAPPABLE #-}
          ( Selector s
-         , GExtract a
-         ) => GExtract (S1 s a) where
-  gExtract base m@(M1 s) xs =
+         , GCovary a
+         ) => GCovary (S1 s a) where
+  gCovary base m@(M1 s) xs =
     let sn = selName m
         x | sn == ""   = base
           | base == "" = sn
           | otherwise  = base ++ "." ++ sn
-    in gExtract x s xs
+    in gCovary x s xs
 
-instance Extract a => GExtract (K1 r a) where
-  gExtract base (K1 a) = extract base a
+instance Covary a => GCovary (K1 r a) where
+  gCovary base (K1 a) = extract base a
 
-instance (GExtract a, GExtract b) => GExtract (a :+: b) where
-  gExtract base (L1 a) = gExtract base a
-  gExtract base (R1 b) = gExtract base b
+instance (GCovary a, GCovary b) => GCovary (a :+: b) where
+  gCovary base (L1 a) = gCovary base a
+  gCovary base (R1 b) = gCovary base b
 
 instance {-# OVERLAPPING #-}
          ( Selector ('MetaSel 'Nothing u s l)
-         , GRecordExtract (S1 ('MetaSel 'Nothing u s l) a :*: sb)
-         ) => GExtract (S1 ('MetaSel 'Nothing u s l) a :*: sb) where
-  gExtract base ss xs = gRecordExtract base 1 ss xs
+         , GRecordCovary (S1 ('MetaSel 'Nothing u s l) a :*: sb)
+         ) => GCovary (S1 ('MetaSel 'Nothing u s l) a :*: sb) where
+  gCovary base ss xs = gRecordCovary base 1 ss xs
 
 instance {-# OVERLAPPABLE #-}
-         ( GExtract a
-         , GExtract b
-         ) => GExtract (a :*: b) where
-  gExtract base (a :*: b) xs = gExtract base b (gExtract base a xs)
+         ( GCovary a
+         , GCovary b
+         ) => GCovary (a :*: b) where
+  gCovary base (a :*: b) xs = gCovary base b (gCovary base a xs)
 
-class GUnlabeledFieldExtract a where
-  gUnlabeledFieldExtract :: String -> Int -> a x -> [(String,Double)] -> [(String,Double)]
+class GUnlabeledFieldCovary a where
+  gUnlabeledFieldCovary :: String -> Int -> a x -> [(String,Double)] -> [(String,Double)]
 
-instance {-# OVERLAPPING #-} (GExtract a) => GUnlabeledFieldExtract (S1 ('MetaSel 'Nothing u s l) a) where
-  gUnlabeledFieldExtract base index m@(M1 s) xs =
+instance {-# OVERLAPPING #-} (GCovary a) => GUnlabeledFieldCovary (S1 ('MetaSel 'Nothing u s l) a) where
+  gUnlabeledFieldCovary base index m@(M1 s) xs =
     let sn = show index
         x | base == "" = sn
           | otherwise  = base ++ "." ++ sn
-    in gExtract x s xs
+    in gCovary x s xs
 
-instance {-# OVERLAPPABLE #-} (GExtract (S1 s a)) => GUnlabeledFieldExtract (S1 s a) where
-  gUnlabeledFieldExtract base _ = gExtract base
+instance {-# OVERLAPPABLE #-} (GCovary (S1 s a)) => GUnlabeledFieldCovary (S1 s a) where
+  gUnlabeledFieldCovary base _ = gCovary base
 
-instance Extract a => GUnlabeledFieldExtract (K1 r a) where
-  gUnlabeledFieldExtract base index (K1 a) xs =
+instance Covary a => GUnlabeledFieldCovary (K1 r a) where
+  gUnlabeledFieldCovary base index (K1 a) xs =
     let x | base == "" = show index
           | otherwise  = base ++ "." ++ show index
     in extract x a xs
 
-class GRecordExtract a where
-  gRecordExtract :: String -> Int -> a x -> [(String,Double)] -> [(String,Double)]
+class GRecordCovary a where
+  gRecordCovary :: String -> Int -> a x -> [(String,Double)] -> [(String,Double)]
 
 instance {-# OVERLAPPABLE #-}
-         ( GUnlabeledFieldExtract s
-         ) => GRecordExtract s where
-  gRecordExtract base index s xs = gUnlabeledFieldExtract base index s xs
+         ( GUnlabeledFieldCovary s
+         ) => GRecordCovary s where
+  gRecordCovary base index s xs = gUnlabeledFieldCovary base index s xs
 
 instance {-# OVERLAPPING #-}
          ( Selector sa
-         , GExtract a
-         , GRecordExtract sb
-         ) => GRecordExtract (S1 sa a :*: sb) where
-  gRecordExtract base index (sa :*: sb) xs =
+         , GCovary a
+         , GRecordCovary sb
+         ) => GRecordCovary (S1 sa a :*: sb) where
+  gRecordCovary base index (sa :*: sb) xs =
     let x | base == "" = show index
           | otherwise  = base ++ "." ++ show index
-    in gRecordExtract base (index + 1) sb (gExtract x sa xs)
+    in gRecordCovary base (index + 1) sb (gCovary x sa xs)

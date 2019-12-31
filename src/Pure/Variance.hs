@@ -4,7 +4,7 @@ module Pure.Variance
   ,stdDev,sampleStdDev,populationStdDev
   ,variance,sampleVariance,populationVariance
   ,vary,varies
-  ,Vary(..),Varied
+  ,Vary(..),Variances
   ,lookupVariance,variances
   ) where
 
@@ -137,31 +137,31 @@ sampleStdDev = fmap sqrt . sampleVariance
 populationStdDev :: Variance -> Maybe Double
 populationStdDev = fmap sqrt . populationVariance
 
-newtype Varied = Varied (HashMap String Variance)
+newtype Variances = Variances (HashMap String Variance)
  deriving (Show,Eq,Generic)
 
-instance Semigroup Varied where
+instance Semigroup Variances where
   {-# INLINE (<>) #-}
-  (<>) (Varied v1) (Varied v2)
-    | HM.null v1 = Varied v2
-    | HM.null v2 = Varied v1
-    | otherwise = Varied $ HM.unionWith (<>) v1 v2
+  (<>) (Variances v1) (Variances v2)
+    | HM.null v1 = Variances v2
+    | HM.null v2 = Variances v1
+    | otherwise = Variances $ HM.unionWith (<>) v1 v2
 
-instance Monoid Varied where
+instance Monoid Variances where
   {-# INLINE mempty #-}
-  mempty = Varied mempty
+  mempty = Variances mempty
 
 {-# INLINE lookupVariance #-}
-lookupVariance :: String -> Varied -> Maybe Variance
-lookupVariance s (Varied v) = HM.lookup s v
+lookupVariance :: String -> Variances -> Maybe Variance
+lookupVariance s (Variances v) = HM.lookup s v
 
 {-# INLINE variances #-}
-variances :: (Foldable f, Vary a) => f a -> Varied
-variances = Foldable.foldl' (flip (varied "")) (Varied mempty)
+variances :: (Foldable f, Vary a) => f a -> Variances
+variances = Foldable.foldl' (flip (varied "")) (Variances mempty)
 
 class Vary a where
-  varied :: String -> a -> Varied -> Varied
-  default varied :: (Generic a, GVary (Rep a)) => String -> a -> Varied -> Varied
+  varied :: String -> a -> Variances -> Variances
+  default varied :: (Generic a, GVary (Rep a)) => String -> a -> Variances -> Variances
   varied nm = gUpdateVariance nm . from
 
 instance {-# OVERLAPPING #-} (Vary a,Vary b) => Vary (a,b)
@@ -180,9 +180,9 @@ instance {-# OVERLAPPING #-} (Vary a) => Vary (Identity a)
 instance {-# OVERLAPPING #-} (Vary (f ( g a))) => Vary (Compose f g a)
 
 {-# INLINE gUpdateRealVariance #-}
-gUpdateRealVariance :: (Real a) => String -> a -> Varied -> Varied
-gUpdateRealVariance nm a (Varied hm) =
-  Varied (HM.alter (Just . maybe (vary a mempty) (vary a)) nm hm)
+gUpdateRealVariance :: (Real a) => String -> a -> Variances -> Variances
+gUpdateRealVariance nm a (Variances hm) =
+  Variances (HM.alter (Just . maybe (vary a mempty) (vary a)) nm hm)
 
 instance {-# OVERLAPPABLE #-} Vary a where
   varied _ _ = id
@@ -283,7 +283,7 @@ instance {-# OVERLAPPING #-} (Vary a, V.Vector v a) => Vary (v a) where
         a
 
 class GVary a where
-  gUpdateVariance :: String -> a x -> Varied -> Varied
+  gUpdateVariance :: String -> a x -> Variances -> Variances
 
 instance ( Datatype d
          , GVary a
@@ -336,7 +336,7 @@ instance {-# OVERLAPPABLE #-}
   gUpdateVariance base (a :*: b) hm = gUpdateVariance base b (gUpdateVariance base a hm)
 
 class GUnlabeledFieldVary a where
-  gUpdateUnlabeledFieldVariance :: String -> Int -> a x -> Varied -> Varied
+  gUpdateUnlabeledFieldVariance :: String -> Int -> a x -> Variances -> Variances
 
 instance {-# OVERLAPPING #-} (GVary a) => GUnlabeledFieldVary (S1 ('MetaSel 'Nothing u s l) a) where
   gUpdateUnlabeledFieldVariance base index m@(M1 s) hm =
@@ -355,7 +355,7 @@ instance (Vary a) => GUnlabeledFieldVary (K1 r a) where
     in varied x a hm
 
 class GRecordVary a where
-  gUpdateRecordVariance :: String -> Int -> a x -> Varied -> Varied
+  gUpdateRecordVariance :: String -> Int -> a x -> Variances -> Variances
 
 instance {-# OVERLAPPABLE #-}
          ( GUnlabeledFieldVary s
