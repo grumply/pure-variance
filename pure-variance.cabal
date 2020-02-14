@@ -1,14 +1,18 @@
 name:                pure-variance
-version:             0.7.0.0
+version:             0.8.0.0
 synopsis:            Styled views
-homepage:            github.com/grumply/pure-variance
+homepage:            purehs.org/doc/pure-variance
 license:             BSD3
 license-file:        LICENSE
-author:              Sean Mackenzie
-maintainer:          sean@grump.ly
+author:              Sean Hickman
+maintainer:          sean@grumply.com
 category:            Web
 build-type:          Simple
 cabal-version:       >=1.10
+
+source-repository head
+  type: git
+  location: https://github.com/grumply/pure-variance.git
 
 library
   exposed-modules:
@@ -16,9 +20,9 @@ library
       Pure.Covariance
 
   build-depends:
-      base >=4.8
-    , pure-txt >= 0.7 && < 1
-    , pure-json >= 0.7 && < 1
+      base
+    , pure-txt
+    , pure-json
     , unordered-containers
     , containers
     , pure-txt-trie
