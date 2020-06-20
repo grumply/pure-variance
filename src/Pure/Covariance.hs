@@ -148,6 +148,9 @@ maximumY c
       let x = realToFrac (f a) 
           y = realToFrac (g a) 
       in Covariance 1 x y 0 0 x x y y 0 
+  #-}
+
+{- Are these always better?
 "sampleVarianceX (covaries f g as) == sampleVariance (varies f as)" forall f g as. sampleVarianceX (covaries f g as) = sampleVariance (varies f as)
 "populationVarianceX (covaries f g as) == populationVariance (varies f as)" forall f g as. populationVarianceX (covaries f g as) = populationVariance (varies f as)
 "sampleVarianceY (covaries f g as) == sampleVariance (varies g as)" forall f g as. sampleVarianceY (covaries f g as) = sampleVariance (varies g as)
@@ -156,7 +159,7 @@ maximumY c
 "populationStdDevX (covaries f g as) == populationStdDev (varies f as)" forall f g as. populationStdDevX (covaries f g as) = populationStdDev (varies f as)
 "sampleStdDevY (covaries f g as) == sampleStdDev (varies g as)" forall f g as. sampleStdDevY (covaries f g as) = sampleStdDev (varies g as)
 "populationStdDevY (covaries f g as) == populationStdDev (varies g as)" forall f g as. populationStdDevY (covaries f g as) = populationStdDev (varies g as)
-  #-}
+  -}
 
 {-# INLINE [1] covary #-}
 covary :: (Real x, Real y) => (a -> x) -> (a -> y) -> a -> Covariance -> Covariance
