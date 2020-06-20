@@ -41,11 +41,11 @@ data Variance
     } deriving (Vary,Eq,Ord,Generic,ToJSON,FromJSON,Show)
 
 instance Monoid Variance where
-  {-# INLINE mempty #-}
+  {-# INLINE [1] mempty #-} 
   mempty = Variance 0 0 0 0 0
 
 instance Semigroup Variance where
-  {-# INLINE (<>) #-}
+  {-# INLINE [1] (<>) #-}
   (<>) v1 v2
     | vCount v1 == 0 = v2
     | vCount v2 == 0 = v1
@@ -70,8 +70,11 @@ instance Semigroup Variance where
           | vCount c < 2 = 0
           | otherwise    = vMean2 c
 
+        var = Variance c m m2' min_ max_
+
       in
-        Variance c m m2' min_ max_
+        var `seq` var
+        
 
 count :: Variance -> Int
 count = round . vCount
@@ -92,50 +95,53 @@ maximum v
   | otherwise     = Just (vMaximum v)
 
 {-# INLINE [1] vary #-}
-vary :: Real a => a -> Variance -> Variance
-vary (realToFrac -> a) Variance {..} =
-  let count = vCount + 1
-      delta = a - vMean
+vary :: Real b => (a -> b) -> a -> Variance -> Variance
+vary f a Variance {..} =
+  let b = realToFrac (f a)
+      count = vCount + 1
+      delta = b - vMean
       mean = vMean + (delta / count)
-      mean2 = vMean2 + delta * (a - mean)
-      mx = max a vMaximum
-      mn = if vCount == 0 then a else min a vMinimum
+      mean2 = vMean2 + delta * (b - mean)
+      mx = max b vMaximum
+      mn = if vCount == 0 then b else min b vMinimum
+      var = Variance count mean mean2 mn mx
   in
-    Variance count mean mean2 mn mx
+    var `seq` var
 
 {-# RULES
-"vary a mempty" forall a. vary a (Variance 0 0 0 0 0) = let r = realToFrac a in Variance 1 r 0 r r
+"vary f a mempty" forall f a. vary f a mempty = let b = realToFrac (f a) in Variance 1 b 0 b b
+"vary f a (Variance 0 0 0 0 0)" forall f a. vary f a (Variance 0 0 0 0 0) = let b = realToFrac (f a) in Variance 1 b 0 b b
   #-}
 
-{-# INLINE varies #-}
+{-# INLINE [1] varies #-}
 varies :: (Foldable f, Real b) => (a -> b) -> f a -> Variance
-varies f = Foldable.foldl' (\v a -> vary (f a) v) mempty
+varies f = Foldable.foldl' (\v a -> vary f a v) mempty
 
-{-# INLINE variance #-}
+{-# INLINE [1] variance #-}
 variance :: Variance -> Maybe Double
 variance = sampleVariance
 
-{-# INLINE sampleVariance #-}
+{-# INLINE [1] sampleVariance #-}
 sampleVariance :: Variance -> Maybe Double
 sampleVariance Variance {..}
   | vCount < 2  = Nothing
   | otherwise   = Just $ vMean2 / (vCount - 1)
 
-{-# INLINE populationVariance #-}
+{-# INLINE [1] populationVariance #-}
 populationVariance :: Variance -> Maybe Double
 populationVariance Variance {..}
   | vCount < 2  = Nothing
   | otherwise   = Just $ vMean2 / vCount
 
-{-# INLINE stdDev #-}
+{-# INLINE [1] stdDev #-}
 stdDev :: Variance -> Maybe Double
 stdDev = sampleStdDev
 
-{-# INLINE sampleStdDev #-}
+{-# INLINE [1] sampleStdDev #-}
 sampleStdDev :: Variance -> Maybe Double
 sampleStdDev = fmap sqrt . sampleVariance
 
-{-# INLINE populationStdDev #-}
+{-# INLINE [1] populationStdDev #-}
 populationStdDev :: Variance -> Maybe Double
 populationStdDev = fmap sqrt . populationVariance
 
@@ -143,21 +149,21 @@ newtype Variances = Variances (HashMap String Variance)
  deriving (Show,Eq,Generic)
 
 instance Semigroup Variances where
-  {-# INLINE (<>) #-}
+  {-# INLINE [1] (<>) #-}
   (<>) (Variances v1) (Variances v2)
     | HM.null v1 = Variances v2
     | HM.null v2 = Variances v1
     | otherwise = Variances $ HM.unionWith (<>) v1 v2
 
 instance Monoid Variances where
-  {-# INLINE mempty #-}
+  {-# INLINE [1] mempty #-}
   mempty = Variances mempty
 
-{-# INLINE lookupVariance #-}
+{-# INLINE [1] lookupVariance #-}
 lookupVariance :: String -> Variances -> Maybe Variance
 lookupVariance s (Variances v) = HM.lookup s v
 
-{-# INLINE variances #-}
+{-# INLINE [1] variances #-}
 variances :: (Foldable f, Vary a) => f a -> Variances
 variances = Foldable.foldl' (flip (varied "")) (Variances mempty)
 
@@ -181,10 +187,10 @@ instance {-# OVERLAPPING #-} (Vary a) => Vary (Const a b)
 instance {-# OVERLAPPING #-} (Vary a) => Vary (Identity a)
 instance {-# OVERLAPPING #-} (Vary (f ( g a))) => Vary (Compose f g a)
 
-{-# INLINE gUpdateRealVariance #-}
+{-# INLINE [1] gUpdateRealVariance #-}
 gUpdateRealVariance :: (Real a) => String -> a -> Variances -> Variances
 gUpdateRealVariance nm a (Variances hm) =
-  Variances (HM.alter (Just . maybe (vary a mempty) (vary a)) nm hm)
+  Variances (HM.alter (Just . maybe (vary id a mempty) (vary id a)) nm hm)
 
 instance {-# OVERLAPPABLE #-} Vary a where
   varied _ _ = id

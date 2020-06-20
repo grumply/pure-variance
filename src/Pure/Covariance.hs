@@ -1,6 +1,6 @@
 module Pure.Covariance
   (Covariance,covary,covaries
-  ,count,meanX,meanY
+  ,count,meanX,meanY,minimumX,maximumX,minimumY,maximumY
   ,covariance,sampleCovariance,populationCovariance
   ,varianceX,sampleVarianceX,populationVarianceX,varianceY,sampleVarianceY,populationVarianceY
   ,stdDevX,sampleStdDevX,populationStdDevX,stdDevY,sampleStdDevY,populationStdDevY
@@ -42,15 +42,19 @@ data Covariance = Covariance
   , cMeany    :: {-# UNPACK #-} !Double
   , cMeanx2   :: {-# UNPACK #-} !Double
   , cMeany2   :: {-# UNPACK #-} !Double
+  , cMinimumX :: {-# UNPACK #-} !Double
+  , cMaximumX :: {-# UNPACK #-} !Double
+  , cMinimumY :: {-# UNPACK #-} !Double
+  , cMaximumY :: {-# UNPACK #-} !Double
   , cC        :: {-# UNPACK #-} !Double
   } deriving (Vary,Eq,Ord,Generic,ToJSON,FromJSON,Show)
 
 instance Monoid Covariance where
-  {-# INLINE mempty #-}
-  mempty = Covariance 0 0 0 0 0 0
+  {-# INLINE [1] mempty #-}
+  mempty = Covariance 0 0 0 0 0 0 0 0 0 0
 
 instance Semigroup Covariance where
-  {-# INLINE (<>) #-}
+  {-# INLINE [1] (<>) #-}
   (<>) c1 c2
     | cCount c1 == 0 = c2
     | cCount c2 == 0 = c1
@@ -86,8 +90,17 @@ instance Semigroup Covariance where
         vY c
           | cCount c < 2 = 0
           | otherwise    = cMeany2 c
+
+        
+        minx = min (cMinimumX c1) (cMinimumX c2)
+        maxx = max (cMaximumX c1) (cMaximumX c2)
+        miny = min (cMinimumY c1) (cMinimumY c2)
+        maxy = max (cMaximumY c1) (cMaximumY c2)
+
+        cov = Covariance count meanx meany meanx2 meany2 minx maxx miny maxy c
        in
-        Covariance count meanx meany meanx2 meany2 c
+         cov `seq` cov
+        
 
 count :: Covariance -> Int
 count = round . cCount
@@ -102,8 +115,39 @@ meanY c
   | cCount c == 0 = Nothing
   | otherwise     = Just (cMeany c)
 
+minimumX :: Covariance -> Maybe Double
+minimumX c
+  | cCount c == 0 = Nothing
+  | otherwise     = Just (cMinimumX c)
+
+maximumX :: Covariance -> Maybe Double
+maximumX c
+  | cCount c == 0 = Nothing
+  | otherwise     = Just (cMaximumX c)
+
+minimumY :: Covariance -> Maybe Double
+minimumY c
+  | cCount c == 0 = Nothing
+  | otherwise     = Just (cMinimumY c)
+
+maximumY :: Covariance -> Maybe Double
+maximumY c
+  | cCount c == 0 = Nothing
+  | otherwise     = Just (cMaximumY c)
+
 {-# RULES
-"covary f g a mempty == Convariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0" forall f g a. covary f g a (Covariance 0 0 0 0 0 0) = Covariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0
+"covary f g a mempty == Convariance {...}"
+    forall f g a. 
+    covary f g a mempty = 
+      let x = realToFrac (f a) 
+          y = realToFrac (g a) 
+      in Covariance 1 x y 0 0 x x y y 0 
+"covary f g a (Covariance 0 0 0 0 0 0 0 0 0 0) == Covariance {...}"
+    forall f g a. 
+    covary f g a (Covariance 0 0 0 0 0 0 0 0 0 0) = 
+      let x = realToFrac (f a) 
+          y = realToFrac (g a) 
+      in Covariance 1 x y 0 0 x x y y 0 
 "sampleVarianceX (covaries f g as) == sampleVariance (varies f as)" forall f g as. sampleVarianceX (covaries f g as) = sampleVariance (varies f as)
 "populationVarianceX (covaries f g as) == populationVariance (varies f as)" forall f g as. populationVarianceX (covaries f g as) = populationVariance (varies f as)
 "sampleVarianceY (covaries f g as) == sampleVariance (varies g as)" forall f g as. sampleVarianceY (covaries f g as) = sampleVariance (varies g as)
@@ -130,15 +174,20 @@ covary f g a Covariance {..} =
     meanx2 = cMeanx2 + dx * (x - meanx)
     meany2 = cMeany2 + dy * (y - meany)
     c = cC + dx * (y - meany) -- NOTE: this looks instictively wrong, but isn't
+    minx = min cMinimumX x
+    maxx = max cMaximumX x
+    miny = min cMinimumY y
+    maxy = max cMaximumY y
 
+    cov = Covariance count meanx meany meanx2 meany2 minx maxx miny maxy c
    in
-    Covariance count meanx meany meanx2 meany2 c
+     cov `seq` cov
 
 {-# INLINE [1] covaries #-}
 covaries :: (Foldable f, Real x, Real y) => (a -> x) -> (a -> y) -> f a -> Covariance
 covaries f g = Foldable.foldl' (flip (covary f g)) mempty
 
-{-# INLINE covariance #-}
+{-# INLINE [1] covariance #-}
 covariance :: Covariance -> Maybe Double
 covariance = sampleCovariance
 
@@ -154,7 +203,7 @@ populationCovariance Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cC / cCount
 
-{-# INLINE varianceX #-}
+{-# INLINE [1] varianceX #-}
 varianceX :: Covariance -> Maybe Double
 varianceX = sampleVarianceX
 
@@ -170,7 +219,7 @@ populationVarianceX Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeanx2 / cCount
 
-{-# INLINE varianceY #-}
+{-# INLINE [1] varianceY #-}
 varianceY :: Covariance -> Maybe Double
 varianceY = sampleVarianceY
 
@@ -186,7 +235,7 @@ populationVarianceY Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeany2 / cCount
 
-{-# INLINE stdDevX #-}
+{-# INLINE [1] stdDevX #-}
 stdDevX :: Covariance -> Maybe Double
 stdDevX = sampleStdDevX
 
@@ -198,7 +247,7 @@ sampleStdDevX = fmap sqrt . sampleVarianceX
 populationStdDevX :: Covariance -> Maybe Double
 populationStdDevX = fmap sqrt . populationVarianceX
 
-{-# INLINE stdDevY #-}
+{-# INLINE [1] stdDevY #-}
 stdDevY :: Covariance -> Maybe Double
 stdDevY = sampleStdDevY
 
@@ -210,11 +259,11 @@ sampleStdDevY = fmap sqrt . sampleVarianceY
 populationStdDevY :: Covariance -> Maybe Double
 populationStdDevY = fmap sqrt . populationVarianceY
 
-{-# INLINE correlation #-}
+{-# INLINE [1] correlation #-}
 correlation :: Covariance -> Maybe Double
 correlation = sampleCorrelation
 
-{-# INLINE sampleCorrelation #-}
+{-# INLINE [1] sampleCorrelation #-}
 sampleCorrelation :: Covariance -> Maybe Double
 sampleCorrelation c = do
   cov <- sampleCovariance c
@@ -225,7 +274,7 @@ sampleCorrelation c = do
     then 0
     else cov / (sdx * sdy)
 
-{-# INLINE populationCorrelation #-}
+{-# INLINE [1] populationCorrelation #-}
 populationCorrelation :: Covariance -> Maybe Double
 populationCorrelation c = do
   cov <- populationCovariance c
@@ -240,29 +289,29 @@ newtype Covariances = Covariances (HashMap (String,String) Covariance)
   deriving (Show,Eq,Generic)
 
 instance Semigroup Covariances where
-  {-# INLINE (<>) #-}
+  {-# INLINE [1] (<>) #-}
   (<>) (Covariances c1) (Covariances c2)
     | HM.null c1 = Covariances c2
     | HM.null c2 = Covariances c1
     | otherwise  = Covariances $ HM.unionWith (<>) c1 c2
 
 instance Monoid Covariances where
-  {-# INLINE mempty #-}
+  {-# INLINE [1] mempty #-}
   mempty = Covariances mempty
 
-{-# INLINE lookupCovariance #-}
+{-# INLINE [1] lookupCovariance #-}
 lookupCovariance :: String -> String -> Covariances -> Maybe Covariance
 lookupCovariance x y (Covariances c) = HM.lookup (x,y) c <|> HM.lookup (y,x) c
 
-{-# INLINE covariances #-}
+{-# INLINE [1] covariances #-}
 covariances :: (Foldable f, Covary a) => f a -> Covariances
 covariances = Foldable.foldl' (flip covaried) (Covariances mempty)
 
-{-# INLINE covaried #-}
+{-# INLINE [1] covaried #-}
 covaried :: Covary a => a -> Covariances -> Covariances
 covaried = updateCovariances . flip (extract "") mempty
   where
-    {-# INLINE updateCovariances #-}
+    {-# INLINE [1] updateCovariances #-}
     updateCovariances :: [(String,Double)] -> Covariances -> Covariances
     updateCovariances cvs hm = hm <> Covariances (HM.fromList (fmap analyze pairs))
       where
