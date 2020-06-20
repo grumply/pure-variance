@@ -1,9 +1,9 @@
 module Pure.Covariance
   (Covariance,covary,covaries
-  ,count,meanx,meany
+  ,count,meanX,meanY
   ,covariance,sampleCovariance,populationCovariance
-  ,variance_x,sampleVariance_x,populationVariance_x,variance_y,sampleVariance_y,populationVariance_y
-  ,stdDev_x,sampleStdDev_x,populationStdDev_x,stdDev_y,sampleStdDev_y,populationStdDev_y
+  ,varianceX,sampleVarianceX,populationVarianceX,varianceY,sampleVarianceY,populationVarianceY
+  ,stdDevX,sampleStdDevX,populationStdDevX,stdDevY,sampleStdDevY,populationStdDevY
   ,correlation,sampleCorrelation,populationCorrelation
   ,Covary(..),Covariances
   ,lookupCovariance
@@ -74,16 +74,16 @@ instance Semigroup Covariance where
 
         meany = (n1 * my1 + n2 * my2) / count
 
-        meanx2 = v_x c1 + v_x c2 + dx ^^ 2 * n1 * n2 / count
-        meany2 = v_y c1 + v_y c2 + dy ^^ 2 * n1 * n2 / count
+        meanx2 = vX c1 + vX c2 + dx ^^ 2 * n1 * n2 / count
+        meany2 = vY c1 + vY c2 + dy ^^ 2 * n1 * n2 / count
 
         c = cC c1 + cC c2 + (mx1 - mx2) * (my1 - my2) * (n1 * n2 / count)
 
-        v_x c
+        vX c
           | cCount c < 2 = 0
           | otherwise    = cMeanx2 c
 
-        v_y c
+        vY c
           | cCount c < 2 = 0
           | otherwise    = cMeany2 c
        in
@@ -92,26 +92,26 @@ instance Semigroup Covariance where
 count :: Covariance -> Int
 count = round . cCount
 
-meanx :: Covariance -> Maybe Double
-meanx c
+meanX :: Covariance -> Maybe Double
+meanX c
   | cCount c == 0 = Nothing
   | otherwise     = Just (cMeanx c)
 
-meany :: Covariance -> Maybe Double
-meany c
+meanY :: Covariance -> Maybe Double
+meanY c
   | cCount c == 0 = Nothing
   | otherwise     = Just (cMeany c)
 
 {-# RULES
 "covary f g a mempty == Convariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0" forall f g a. covary f g a (Covariance 0 0 0 0 0 0) = Covariance 1 (realToFrac (f a)) (realToFrac (g a)) 0 0 0
-"sampleVariance_x (covaries f g as) == sampleVariance (varies f as)" forall f g as. sampleVariance_x (covaries f g as) = sampleVariance (varies f as)
-"populationVariance_x (covaries f g as) == populationVariance (varies f as)" forall f g as. populationVariance_x (covaries f g as) = populationVariance (varies f as)
-"sampleVariance_y (covaries f g as) == sampleVariance (varies g as)" forall f g as. sampleVariance_y (covaries f g as) = sampleVariance (varies g as)
-"populationVariance_y (covaries f g as) == populationVariance (varies g as)" forall f g as. populationVariance_y (covaries f g as) = populationVariance (varies g as)
-"sampleStdDev_x (covaries f g as) == sampleStdDev (varies f as)" forall f g as. sampleStdDev_x (covaries f g as) = sampleStdDev (varies f as)
-"populationStdDev_x (covaries f g as) == populationStdDev (varies f as)" forall f g as. populationStdDev_x (covaries f g as) = populationStdDev (varies f as)
-"sampleStdDev_y (covaries f g as) == sampleStdDev (varies g as)" forall f g as. sampleStdDev_y (covaries f g as) = sampleStdDev (varies g as)
-"populationStdDev_y (covaries f g as) == populationStdDev (varies g as)" forall f g as. populationStdDev_y (covaries f g as) = populationStdDev (varies g as)
+"sampleVarianceX (covaries f g as) == sampleVariance (varies f as)" forall f g as. sampleVarianceX (covaries f g as) = sampleVariance (varies f as)
+"populationVarianceX (covaries f g as) == populationVariance (varies f as)" forall f g as. populationVarianceX (covaries f g as) = populationVariance (varies f as)
+"sampleVarianceY (covaries f g as) == sampleVariance (varies g as)" forall f g as. sampleVarianceY (covaries f g as) = sampleVariance (varies g as)
+"populationVarianceY (covaries f g as) == populationVariance (varies g as)" forall f g as. populationVarianceY (covaries f g as) = populationVariance (varies g as)
+"sampleStdDevX (covaries f g as) == sampleStdDev (varies f as)" forall f g as. sampleStdDevX (covaries f g as) = sampleStdDev (varies f as)
+"populationStdDevX (covaries f g as) == populationStdDev (varies f as)" forall f g as. populationStdDevX (covaries f g as) = populationStdDev (varies f as)
+"sampleStdDevY (covaries f g as) == sampleStdDev (varies g as)" forall f g as. sampleStdDevY (covaries f g as) = sampleStdDev (varies g as)
+"populationStdDevY (covaries f g as) == populationStdDev (varies g as)" forall f g as. populationStdDevY (covaries f g as) = populationStdDev (varies g as)
   #-}
 
 {-# INLINE [1] covary #-}
@@ -154,61 +154,61 @@ populationCovariance Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cC / cCount
 
-{-# INLINE variance_x #-}
-variance_x :: Covariance -> Maybe Double
-variance_x = sampleVariance_x
+{-# INLINE varianceX #-}
+varianceX :: Covariance -> Maybe Double
+varianceX = sampleVarianceX
 
-{-# INLINE [1] sampleVariance_x #-}
-sampleVariance_x :: Covariance -> Maybe Double
-sampleVariance_x Covariance {..}
+{-# INLINE [1] sampleVarianceX #-}
+sampleVarianceX :: Covariance -> Maybe Double
+sampleVarianceX Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeanx2 / (cCount - 1)
 
-{-# INLINE [1] populationVariance_x #-}
-populationVariance_x :: Covariance -> Maybe Double
-populationVariance_x Covariance {..}
+{-# INLINE [1] populationVarianceX #-}
+populationVarianceX :: Covariance -> Maybe Double
+populationVarianceX Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeanx2 / cCount
 
-{-# INLINE variance_y #-}
-variance_y :: Covariance -> Maybe Double
-variance_y = sampleVariance_y
+{-# INLINE varianceY #-}
+varianceY :: Covariance -> Maybe Double
+varianceY = sampleVarianceY
 
-{-# INLINE [1] sampleVariance_y #-}
-sampleVariance_y :: Covariance -> Maybe Double
-sampleVariance_y Covariance {..}
+{-# INLINE [1] sampleVarianceY #-}
+sampleVarianceY :: Covariance -> Maybe Double
+sampleVarianceY Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeany2 / (cCount - 1)
 
-{-# INLINE [1] populationVariance_y #-}
-populationVariance_y :: Covariance -> Maybe Double
-populationVariance_y Covariance {..}
+{-# INLINE [1] populationVarianceY #-}
+populationVarianceY :: Covariance -> Maybe Double
+populationVarianceY Covariance {..}
   | cCount < 2  = Nothing
   | otherwise   = Just $ cMeany2 / cCount
 
-{-# INLINE stdDev_x #-}
-stdDev_x :: Covariance -> Maybe Double
-stdDev_x = sampleStdDev_x
+{-# INLINE stdDevX #-}
+stdDevX :: Covariance -> Maybe Double
+stdDevX = sampleStdDevX
 
-{-# INLINE [1] sampleStdDev_x #-}
-sampleStdDev_x :: Covariance -> Maybe Double
-sampleStdDev_x = fmap sqrt . sampleVariance_x
+{-# INLINE [1] sampleStdDevX #-}
+sampleStdDevX :: Covariance -> Maybe Double
+sampleStdDevX = fmap sqrt . sampleVarianceX
 
-{-# INLINE [1] populationStdDev_x #-}
-populationStdDev_x :: Covariance -> Maybe Double
-populationStdDev_x = fmap sqrt . populationVariance_x
+{-# INLINE [1] populationStdDevX #-}
+populationStdDevX :: Covariance -> Maybe Double
+populationStdDevX = fmap sqrt . populationVarianceX
 
-{-# INLINE stdDev_y #-}
-stdDev_y :: Covariance -> Maybe Double
-stdDev_y = sampleStdDev_y
+{-# INLINE stdDevY #-}
+stdDevY :: Covariance -> Maybe Double
+stdDevY = sampleStdDevY
 
-{-# INLINE [1] sampleStdDev_y #-}
-sampleStdDev_y :: Covariance -> Maybe Double
-sampleStdDev_y = fmap sqrt . sampleVariance_y
+{-# INLINE [1] sampleStdDevY #-}
+sampleStdDevY :: Covariance -> Maybe Double
+sampleStdDevY = fmap sqrt . sampleVarianceY
 
-{-# INLINE [1] populationStdDev_y #-}
-populationStdDev_y :: Covariance -> Maybe Double
-populationStdDev_y = fmap sqrt . populationVariance_y
+{-# INLINE [1] populationStdDevY #-}
+populationStdDevY :: Covariance -> Maybe Double
+populationStdDevY = fmap sqrt . populationVarianceY
 
 {-# INLINE correlation #-}
 correlation :: Covariance -> Maybe Double
@@ -218,8 +218,8 @@ correlation = sampleCorrelation
 sampleCorrelation :: Covariance -> Maybe Double
 sampleCorrelation c = do
   cov <- sampleCovariance c
-  sdx <- sampleStdDev_x c
-  sdy <- sampleStdDev_y c
+  sdx <- sampleStdDevX c
+  sdy <- sampleStdDevY c
   pure $
     if sdx == 0 || sdy == 0
     then 0
@@ -229,8 +229,8 @@ sampleCorrelation c = do
 populationCorrelation :: Covariance -> Maybe Double
 populationCorrelation c = do
   cov <- populationCovariance c
-  sdx <- populationStdDev_x c
-  sdy <- populationStdDev_y c
+  sdx <- populationStdDevX c
+  sdy <- populationStdDevY c
   pure $
     if sdx == 0 || sdy == 0
     then 0

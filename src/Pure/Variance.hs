@@ -1,6 +1,6 @@
 module Pure.Variance
   (Variance
-  ,minimum_,maximum_,mean,count
+  ,minimum,maximum,mean,count
   ,stdDev,sampleStdDev,populationStdDev
   ,variance,sampleVariance,populationVariance
   ,vary,varies
@@ -9,7 +9,7 @@ module Pure.Variance
   ) where
 
 import Pure.Data.JSON
-import Pure.Data.Txt hiding (count)
+import Pure.Data.Txt hiding (count,minimum,maximum)
 
 import qualified Data.Foldable as Foldable
 import Data.Functor.Sum
@@ -28,6 +28,8 @@ import Data.HashMap.Strict as HM
 import Data.Map as Map
 import Pure.Data.Txt.Trie as Trie
 import qualified Data.Vector.Generic as V
+
+import Prelude hiding (minimum,maximum)
 
 data Variance
   = Variance
@@ -79,13 +81,13 @@ mean v
   | vCount v == 0 = Nothing
   | otherwise     = Just (vMean v)
 
-minimum_ :: Variance -> Maybe Double
-minimum_ v
+minimum :: Variance -> Maybe Double
+minimum v
   | vCount v == 0 = Nothing
   | otherwise     = Just (vMinimum v)
 
-maximum_ :: Variance -> Maybe Double
-maximum_ v
+maximum :: Variance -> Maybe Double
+maximum v
   | vCount v == 0 = Nothing
   | otherwise     = Just (vMaximum v)
 
